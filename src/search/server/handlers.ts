@@ -4,6 +4,7 @@ import * as utils from './utils'
 
 export default function addHandlers(app: Express) {
     app.get('/find', (req, res) => {
+
         const category = req.query['category'].toString();
         const search = req.query['search'].toString();
 

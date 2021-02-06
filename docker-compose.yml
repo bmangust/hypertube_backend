@@ -11,6 +11,12 @@ services:
       MONGO_USER: ${MONGO_USER}
       MONGO_PASSWORD: ${MONGO_PASSWORD}
       MONGO_ADDRESS: ${MONGO_ADDRESS}
+
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     networks:
       - docker_net
 
@@ -24,6 +30,46 @@ services:
       - docker_net
     depends_on:
       - search
+
+  redis-db:
+    image: redis:${REDIS_VERSION}
+    restart: always
+    hostname: redis-db
+    ports:
+      - ${REDIS_PORT}:6379
+    networks:
+      - docker_net
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ./data/redis:/data
+
+#  redis-commander:
+#    container_name: redis-commander
+#    hostname: redis-commander
+#    image: rediscommander/redis-commander:latest
+#    restart: always
+#    environment:
+#      - REDIS_HOSTS=local:redis-db:6379:0:${REDIS_PASSWORD}
+#    ports:
+#      - ${REDIS_UI_PORT}:8081
+
+
+  postgres-db:
+    image: postgres:9.6.17
+    volumes:
+      - ./data/pgsql:/var/lib/postgresql/data
+    ports:
+      - ${POSTGRES_PORT}:${POSTGRES_PORT}
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    networks:
+      - docker_net
+    restart: on-failure
+
 
 networks:
   docker_net:
