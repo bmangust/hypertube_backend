@@ -29,8 +29,8 @@ const colors = {
 export const colorize = (color: keyof typeof colors, text: string) =>
   `${colors[color]}${text}${colors.Reset}`;
 
-export const red = (text: string) => colorize('FgBlack', text);
-export const black = (text: string) => colorize('FgRed', text);
+export const red = (text: string) => colorize('FgRed', text);
+export const black = (text: string) => colorize('FgBlack', text);
 export const green = (text: string) => colorize('FgGreen', text);
 export const yellow = (text: string) => colorize('FgYellow', text);
 export const blue = (text: string) => colorize('FgBlue', text);
