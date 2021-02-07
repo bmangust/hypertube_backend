@@ -49,21 +49,21 @@ services:
     volumes:
       - ./data/redis:/data
 
-#  redis-commander:
-#    container_name: redis-commander
-#    hostname: redis-commander
-#    image: rediscommander/redis-commander:latest
-#    restart: always
-#    environment:
-#      - REDIS_HOSTS=local:redis-db:6379:0:${REDIS_PASSWORD}
-#    ports:
-#      - ${REDIS_UI_PORT}:8081
-
+  #  redis-commander:
+  #    container_name: redis-commander
+  #    hostname: redis-commander
+  #    image: rediscommander/redis-commander:latest
+  #    restart: always
+  #    environment:
+  #      - REDIS_HOSTS=local:redis-db:6379:0:${REDIS_PASSWORD}
+  #    ports:
+  #      - ${REDIS_UI_PORT}:8081
 
   postgres-db:
     image: postgres:9.6.17
     volumes:
-      - ./data/pgsql:/var/lib/postgresql/data
+      #      - ./data/pgsql:/var/lib/postgresql/data:Z
+      - ./data/pgsql:/home/${POSTGRES_USER}/data:Z
     ports:
       - ${POSTGRES_PORT}:${POSTGRES_PORT}
     environment:
@@ -75,7 +75,6 @@ services:
     networks:
       - docker_net
     restart: on-failure
-
 
 networks:
   docker_net:
