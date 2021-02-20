@@ -23,6 +23,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+
+      SEARCH_API_PORT: ${SEARCH_API_PORT}
+      SEARCH_LOG_LEVEL: ${SEARCH_LOG_LEVEL}
+      IMDB_API_KEY: ${IMDB_API_KEY}
     networks:
       - docker_net
 

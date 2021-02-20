@@ -26,41 +26,53 @@ const getFileAndLineNumber = () => {
   }
   return initiator;
 };
+const getFullStackTrace = () => {
+  let initiator = 'unknown place';
+  try {
+    throw new Error();
+  } catch (e) {
+    initiator = e.stack;
+  }
+  return initiator;
+};
 
 const logger = {
   trace: (...rest) => {
     if (LEVEL[level] <= LEVEL.TRACE) {
-      console.log(cyan(`${time()} TRACE ${getFileAndLineNumber()} `), ...rest);
+      console.log(cyan(`${time()} : T : ${getFileAndLineNumber()} `), ...rest);
     }
   },
   debug: (...rest) => {
     if (LEVEL[level] <= LEVEL.DEBUG) {
       console.log(
-        magenta(`${time()} DEBUG ${getFileAndLineNumber()} `),
+        magenta(`${time()} : D : ${getFileAndLineNumber()} `),
         ...rest
       );
     }
   },
   info: (...rest) => {
     if (LEVEL[level] <= LEVEL.INFO) {
-      console.log(green(`${time()} INFO ${getFileAndLineNumber()} `), ...rest);
+      console.log(green(`${time()} : I : ${getFileAndLineNumber()} `), ...rest);
     }
   },
   warn: (...rest) => {
     if (LEVEL[level] <= LEVEL.WARN) {
-      console.log(yellow(`${time()} WARN ${getFileAndLineNumber()} `), ...rest);
+      console.log(
+        yellow(`${time()} : W : ${getFileAndLineNumber()} `),
+        ...rest
+      );
     }
   },
   error: (...rest) => {
     if (LEVEL[level] <= LEVEL.ERROR) {
-      console.log(red(`${time()} ERROR ${getFileAndLineNumber()} `), ...rest);
+      console.log(red(`${time()} : E : \n${getFullStackTrace()} `), ...rest);
     }
   },
   all: (...rest) => {
-    console.log(cyan(`${time()} ALL ${getFileAndLineNumber()} `), ...rest);
+    console.log(cyan(`${time()} : A : ${getFileAndLineNumber()} `), ...rest);
   },
 };
 
-export const log = logger.all;
+// export const log = logger.all;
 
 export default logger;

@@ -1,4 +1,5 @@
 import * as redis from 'redis';
+import log from '../../logger/logger';
 
 export class BaseRedis {
   constructor() {
@@ -20,10 +21,12 @@ export class BaseRedis {
   }
 
   private initConnection() {
+    log.debug('process.env: ', process.env);
+
     const host =
       process.env.REDIS_HOST && process.env.REDIS_HOST.length > 0
         ? process.env.REDIS_HOST
-        : 'redis';
+        : 'localhost';
     const port =
       process.env.REDIS_PORT && process.env.REDIS_PORT.length > 0
         ? process.env.REDIS_PORT
@@ -35,19 +38,21 @@ export class BaseRedis {
     const password =
       process.env.REDIS_PASSWORD && process.env.REDIS_PASSWORD.length > 0
         ? process.env.REDIS_PASSWORD
-        : 'ffa9203c493aa99';
+        : '234234234';
 
     const url = `redis://${user}:${password}@${host}:${port}`;
-    console.log('Redis url: ', url);
+    log.info('Redis url: ', url);
 
     this.client = redis.createClient({
       url: url,
     });
 
-    console.log('Connected to redis: ', this.isConnected);
-
-    this.client.on('error', function (error) {
-      console.error('Create client error: ', error);
-    });
+    this.client
+      .on('connect', function () {
+        log.info('Connected to redis: ', this.isConnected);
+      })
+      .on('error', function (error) {
+        log.error('Create client error: ', error);
+      });
   }
 }

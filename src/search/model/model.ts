@@ -4,22 +4,28 @@ export interface httpResponse {
 }
 
 export interface IGenres {
-  Adventure: boolean;
-  Arthouse: boolean;
   Action: boolean;
+  Adventure: boolean;
+  Animation: boolean;
+  Biography: boolean;
   Comedy: boolean;
-  Comics: boolean;
-  Detective: boolean;
+  Crime: boolean;
+  Documentary: boolean;
   Drama: boolean;
-  Fantasy: boolean;
   Family: boolean;
+  Fantasy: boolean;
+  'Film Noir': boolean;
+  History: boolean;
   Horror: boolean;
-  Melodrama: boolean;
-  Musical: boolean;
+  Music: boolean;
+  Mystery: boolean;
   Romance: boolean;
   'Sci-Fi': boolean;
+  Short: boolean;
   Sport: boolean;
+  Superhero: boolean;
   Thriller: boolean;
+  War: boolean;
   Western: boolean;
 }
 export type GenresKeys = keyof IGenres;
@@ -42,7 +48,7 @@ export type CountriesKeys = keyof ICountries;
 
 export interface IMovie {
   id: string;
-  name: string;
+  title: string;
   img: string;
   src: string;
   info: IMovieInfo;
@@ -55,8 +61,8 @@ export interface IMovieInfo {
   rating: number;
   views: number;
   length: number;
-  country?: CountriesKeys[];
   pgRating: string;
+  countries?: string[];
   comments?: IComment[];
   commentIds?: string[];
   description?: string;
@@ -64,13 +70,11 @@ export interface IMovieInfo {
   videos?: string[];
   moreLikeThis?: IMovie[];
   storyline?: string;
-  directed?: IUser[];
+  directors?: string;
+  directorList?: IUser[];
+  stars?: string;
   cast?: IUser[];
-  writingCredits?: IUser[];
-  produced?: IUser[];
-  music?: IUser[];
-  cinematography?: IUser[];
-  filmEditing?: IUser[];
+  keywords?: string[];
 }
 
 export interface IComment {
@@ -81,8 +85,10 @@ export interface IComment {
 }
 
 export interface IUser {
+  id: string;
   name: string;
-  photo?: string[];
+  image?: string;
+  asCharacter?: string;
   knownFor?: IMovie[];
   filmography?: IFilmography[];
   otherWorks?: string[];
