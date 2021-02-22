@@ -11,6 +11,7 @@ enum LEVEL {
 
 const time = () => dayjs().format('YYYY-MM-DDTHH:mm:ss.SSS');
 const level = process.env.SEARCH_LOG_LEVEL || 'DEBUG';
+const MODULE = 'search';
 const getFileAndLineNumber = () => {
   let initiator = 'unknown place';
   try {
@@ -18,9 +19,10 @@ const getFileAndLineNumber = () => {
   } catch (e) {
     if (typeof e.stack === 'string') {
       const lines = e.stack.split('\n');
-      const matches = lines[3].match(/^\s*at\s+(.*) (\(.+src\/search\/(.+)\))/);
+      const regex = new RegExp(`^\\s*at\\s+.*(/src/${MODULE}/.+)\/([\\w:.]+)`);
+      const matches = lines[3].match(regex);
       if (matches) {
-        initiator = `${matches[1]} at ${matches[3]}`;
+        initiator = `${matches[1]} at ${matches[2]}`;
       }
     }
   }
