@@ -1,6 +1,13 @@
 .env
 .idea
 .vscode
+**/*.log
+.json
 data
 
-src/search/node_modules
+node_modules
+dist
+!package.json
+!package-lock.json
+!tsconfig.json
+src/**/*.json
