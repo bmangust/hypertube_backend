@@ -31,7 +31,7 @@ export const selectCommentById = async (id: number): Promise<IFrontComment> => {
 };
 export const selectCommentsByMovieID = async (
   id: string,
-  limit: number | 'ALL' = 'ALL',
+  limit: number = 20,
   offset: number = 0
 ): Promise<IFrontComment[]> => {
   log.debug('[selectComment]', id);

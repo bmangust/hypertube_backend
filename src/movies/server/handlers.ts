@@ -9,15 +9,29 @@ import {
   selectCommentsByMovieID,
   updateComment,
 } from '../db/postgres/comments';
-import { getMovies, IRating, updateMovieRating } from '../db/postgres/movies';
+import {
+  getMovieInfo,
+  getMovies,
+  IRating,
+  updateMovieRating,
+} from '../db/postgres/movies';
 
 export function addMoviesHandlers(app: Express) {
   app.get('/movies', async (req, res) => {
     log.trace(req);
     const limit = +req.query.limit || 5;
     const offset = +req.query.offset || 0;
+    const id = (req.query.id as string) || null;
 
     try {
+      if (id) {
+        const movie = await getMovieInfo(id);
+        log.debug('[GET /movies] movieById:', movie);
+        if (movie) res.json(createSuccessResponse([movie])).status(200);
+        else res.json(createSuccessResponse(null)).status(200);
+        return;
+      }
+
       const movies = await getMovies(limit, offset);
       if (movies) res.json(createSuccessResponse(movies)).status(200);
       else res.json(createSuccessResponse(null)).status(200);
@@ -78,7 +92,7 @@ export function addCommentsHandlers(app: Express) {
         return res
           .json(createErrorResponse('Error posting comment'))
           .status(500);
-      const result = selectCommentById(newComment.id);
+      const result = await selectCommentById(newComment.id);
       log.debug(result);
       res.json(createSuccessResponse(result)).status(200);
     } catch (e) {

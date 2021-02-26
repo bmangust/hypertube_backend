@@ -138,7 +138,7 @@ export const groupTorrentsByTitle = (
 export const searchTorrents = async function (
   search: string,
   category: string = 'Movie',
-  options = { limit: 5, retries: 3 }
+  options = { limit: 20, retries: 3 }
 ) {
   log.debug('[Torrents] searchTorrents start');
   try {

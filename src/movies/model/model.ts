@@ -67,6 +67,7 @@ export interface IDBMovie {
   keywordlist: string;
   images: string;
   imdbrating: string;
+  maxcomments: string;
 }
 
 export interface IMovie {

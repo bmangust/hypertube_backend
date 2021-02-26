@@ -19,8 +19,10 @@ const selectMovieFromDB = async (
     if (!id && !title)
       throw new Error('[selectMovieFromDB] Both movieID and title are missing');
     const res = id
-      ? await query(`SELECT * FROM movies WHERE id='${id}'`)
-      : await query(`SELECT * FROM movies WHERE title LIKE '%${title}%'`);
+      ? await query(`SELECT id as imdbid, * FROM movies WHERE id='${id}'`)
+      : await query(
+          `SELECT id as imdbid, * FROM movies WHERE title LIKE '%${title}%'`
+        );
     log.debug('[selectMovieFromDB]', res.rows);
     return res.rowCount ? res.rows[0] : null;
   } catch (e) {
@@ -31,6 +33,7 @@ const selectMovieFromDB = async (
 
 const dbToIMovie = (row: IDBMovie, comments?: IFrontComment[]): IMovie => {
   log.trace('[dbToIMovie]', row);
+  const defaultNumberOfCommentsToLoad = 5;
   return {
     id: row.imdbid,
     title: row.title,
@@ -52,8 +55,8 @@ const dbToIMovie = (row: IDBMovie, comments?: IFrontComment[]): IMovie => {
       cast: JSON.parse(row.actorlist),
       keywords: row.keywordlist?.split(','),
       photos: row.images ? JSON.parse(row.images) : undefined,
-      comments: comments?.slice(0, 5),
-      maxComments: comments?.length || 0,
+      comments: comments?.slice(0, defaultNumberOfCommentsToLoad),
+      maxComments: comments ? comments.length : +row.maxcomments,
     },
   };
 };
@@ -175,7 +178,21 @@ export const getMovieInfo = async (movieid: string): Promise<IMovie> => {
 export const getMovies = async (limit: number = 5, offset: number = 0) => {
   try {
     const res = await query(
-      `SELECT m.id as imdbid, * FROM movies m JOIN torrents t ON t.movieid = m.id WHERE t.magnet IS NOT NULL OR t.torrent IS NOT NULL ORDER BY m.rating LIMIT $1 OFFSET $2;`,
+      `select
+        m.id as imdbid, m.*, count(c.*) maxComments
+      from
+        movies m
+      join torrents t on
+        t.movieid = m.id
+      left join comments c on
+        m.id = c.movieid 
+      where
+        t.magnet is not null
+        or t.torrent is not null
+      group by m.id
+      order by
+        m.rating
+      limit $1 offset $2;`,
       [limit, offset]
     );
     if (!res.rowCount) throw new Error('No movies with saved torrents found');
