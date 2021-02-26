@@ -10,7 +10,6 @@ import {
   updateComment,
 } from '../db/postgres/comments';
 import { getMovies, IRating, updateMovieRating } from '../db/postgres/movies';
-import { randomInt } from 'crypto';
 
 export function addMoviesHandlers(app: Express) {
   app.get('/movies', async (req, res) => {
@@ -80,6 +79,7 @@ export function addCommentsHandlers(app: Express) {
           .json(createErrorResponse('Error posting comment'))
           .status(500);
       const result = selectCommentById(newComment.id);
+      log.debug(result);
       res.json(createSuccessResponse(result)).status(200);
     } catch (e) {
       log.error(`Error posting comment: ${e}`);

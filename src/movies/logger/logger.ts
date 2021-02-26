@@ -19,7 +19,9 @@ const getFileAndLineNumber = () => {
   } catch (e) {
     if (typeof e.stack === 'string') {
       const lines = e.stack.split('\n');
-      const regex = new RegExp(`^\\s*at\\s+.*(/src/${MODULE}/.+)\/([\\w:.]+)`);
+      const path =
+        process.env.NODE_ENV === 'production' ? 'dist/db/' : `/src/${MODULE}/`;
+      const regex = new RegExp(`^\\s*at\\s+.*(${path}.+)\/([\\w:.]+)`);
       const matches = lines[3].match(regex);
       if (matches) {
         initiator = `${matches[1]} at ${matches[2]}`;
