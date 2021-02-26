@@ -51,7 +51,7 @@ const parseSpacedFormat = (torrent: Torrent): ITorrent => {
   };
 };
 
-const parseSize = (size: string) => {
+export const parseSize = (size: string) => {
   return size.search('GB') !== -1
     ? Number.parseFloat(size)
     : Number.parseFloat(size) / 1000;
@@ -144,16 +144,18 @@ export const searchTorrents = async function (
   try {
     let torrents = (await TorrentSearchApi.search(
       search,
-      'All',
+      category,
       options.limit
     )) as FullTorrent[];
     log.info(`Got ${torrents.length} torrents`);
-    log.trace(torrents);
+    log.debug(torrents);
     if (!torrents.length) throw new Error('Zero torrents found');
 
-    const filetredTorrents = torrents.filter((torrent) =>
-      torrent.title.match(/(720p)|(1080p)|(brrip)|(dvdrip)/gi)
-    );
+    const filetredTorrents = torrents
+      .filter((torrent) => !torrent.title.match(/xxx/gi))
+      .filter((torrent) =>
+        torrent.title.match(/(720p)|(1080p)|(brrip)|(dvdrip)/gi)
+      );
 
     // torrents = await Promise.all(
     //   torrents.map(async (torrent) => {

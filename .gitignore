@@ -2,12 +2,12 @@
 .idea
 .vscode
 **/*.log
-.json
-data
+**/*.json
 
+data
 node_modules
 dist
+
 !package.json
 !package-lock.json
 !tsconfig.json
-src/**/*.json

@@ -1,9 +1,13 @@
 import axios from 'axios';
 import { json } from 'express';
 import { QueryResultRow } from 'pg';
-import { getMovieFromDB, saveMovieToDB } from '../db/postgres/postgres';
+import {
+  getMovieFromDB,
+  saveMovieToDB,
+  saveTorrentInDB,
+} from '../db/postgres/postgres';
 import log from '../logger/logger';
-import { GenresKeys, IMovie } from '../model/model';
+import { GenresKeys, IDBMovie, IMovie } from '../model/model';
 import { FullTorrent, ITorrent } from './torrents';
 const nameToImdb = require('name-to-imdb');
 
@@ -54,6 +58,28 @@ export interface IMDBMovie {
   errorMessage?: string;
 }
 
+const isInfoFull = ({
+  id,
+  title,
+  year,
+  image,
+  plot,
+  imDbRating,
+  directors,
+  stars,
+}: IMDBMovie) => {
+  return (
+    id?.length &&
+    title?.length &&
+    year?.length &&
+    image?.length &&
+    plot?.length &&
+    imDbRating?.length &&
+    directors?.length &&
+    stars?.length
+  );
+};
+
 export const removeDuplicates = (movies: IMovie[]) => {
   return movies.reduce((acc: IMovie[], cur) => {
     return !cur || acc.find((movie) => movie.id === cur.id)
@@ -67,6 +93,7 @@ export const getIMDBInfo = async (
 ): Promise<IMDBMovie | null> => {
   try {
     const movie = await searchMovieInIMDB(torrent);
+    log.debug('[getIMDBInfo] search movie result', movie);
     if (movie) {
       if (movie.similars?.length) {
         movie.similars.forEach((item) => saveMovieToDB(item));
@@ -87,19 +114,20 @@ const searchMovieInIMDB = async (torrent: ITorrent) => {
       `https://imdb-api.com/en/API/Search/${process.env.IMDB_API_KEY}/${torrent.movieTitle} ${torrent.year}`,
       { validateStatus: (status) => status >= 200 && status < 500 }
     );
-    log.debug('[searchMovieInIMDB] SEARCH result', search.data);
+    log.trace('[searchMovieInIMDB] SEARCH result', search.data);
     if (search.data.results && search.data.results.length) {
       id = search.data.results[0]?.id;
     }
-    if (id) return search.data as IMDBMovie;
+    if (isInfoFull(search.data.results[0]))
+      return search.data.results[0] as IMDBMovie;
   }
   const movie = await axios(
     `https://imdb-api.com/en/API/Title/${process.env.IMDB_API_KEY}/${id}`,
     { validateStatus: (status) => status >= 200 && status < 500 }
   );
-  log.debug('[searchMovieInIMDB] TITLE result', movie?.data);
+  log.trace('[searchMovieInIMDB] TITLE result', movie?.data);
   if (movie.data?.id) {
-    log.debug('[searchMovieInIMDB] results', movie.data);
+    log.trace('[searchMovieInIMDB] results', movie.data);
     return movie.data as IMDBMovie;
   } else {
     return null;
@@ -166,7 +194,7 @@ export const imdbToIMovie = (
   };
 };
 
-export const dbToIMovie = (row: QueryResultRow, torrent: ITorrent): IMovie => {
+export const dbToIMovie = (row: IDBMovie, torrent: ITorrent): IMovie => {
   log.trace('[dbToIMovie]', row);
   return {
     id: row.id,
@@ -176,12 +204,12 @@ export const dbToIMovie = (row: QueryResultRow, torrent: ITorrent): IMovie => {
     info: {
       avalibility: torrent?.torrent.seeds || 0,
       year: +row.year,
-      genres: row.genres.split(', '),
+      genres: (row.genres.split(', ') as unknown) as GenresKeys[],
       rating: +row.rating,
-      views: row.views,
+      views: +row.views,
       length: +row.runtimemins,
       pgRating: row.contentrating || 'N/A',
-      countries: row.countries?.split(', ') || '',
+      countries: row.countries?.split(', ') || [],
       description: row.plot || '',
       directors: row.directors,
       directorList: JSON.parse(row.directorlist),
@@ -193,21 +221,26 @@ export const dbToIMovie = (row: QueryResultRow, torrent: ITorrent): IMovie => {
   };
 };
 
-export const loadMoviesInfo = (torrents: ITorrent[]) => {
+export const loadMoviesInfo = (torrents: ITorrent[]): Promise<IMovie[]> => {
   return Promise.all(
     torrents.map(async (torrent) => {
+      let movie = null;
       const dbInfo = await getMovieFromDB(torrent);
       if (dbInfo) {
-        log.debug('movie found in DB: ', dbInfo);
-        return dbInfo;
+        movie = dbToIMovie(dbInfo, torrent);
+        log.debug('movie found in DB: ', movie);
+      } else {
+        log.info(
+          `${torrent.movieTitle} was not found in database, now search in IMDB`
+        );
+        const IMDBInfo = await getIMDBInfo(torrent);
+        if (IMDBInfo.id) {
+          saveMovieToDB(IMDBInfo);
+          movie = imdbToIMovie(IMDBInfo, torrent);
+        }
       }
-      log.info(
-        `${torrent.movieTitle} was not found in database, now search in IMDB`
-      );
-
-      const movie = await getIMDBInfo(torrent);
-      saveMovieToDB(movie);
-      return imdbToIMovie(movie, torrent);
+      saveTorrentInDB(torrent, movie);
+      return movie;
     })
   );
 };

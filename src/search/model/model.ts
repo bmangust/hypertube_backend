@@ -46,6 +46,28 @@ export interface ICountries {
 }
 export type CountriesKeys = keyof ICountries;
 
+export interface IDBMovie {
+  id: string;
+  title: string;
+  image: string;
+  year: string;
+  genres: string;
+  rating: string;
+  votes: string;
+  views: string;
+  runtimemins: string;
+  contentrating: string;
+  countries: string;
+  plot: string;
+  directors: string;
+  directorlist: string;
+  stars: string;
+  actorlist: string;
+  keywordlist: string;
+  images: string;
+  imdbrating: string;
+}
+
 export interface IMovie {
   id: string;
   title: string;
@@ -55,7 +77,7 @@ export interface IMovie {
 }
 
 export interface IMovieInfo {
-  avalibility: number;
+  avalibility?: number;
   year: number;
   genres: GenresKeys[];
   rating: number;
@@ -63,8 +85,7 @@ export interface IMovieInfo {
   length: number;
   pgRating: string;
   countries?: string[];
-  comments?: IComment[];
-  commentIds?: string[];
+  comments?: IFrontComment[];
   description?: string;
   photos?: string[];
   videos?: string[];
@@ -78,10 +99,18 @@ export interface IMovieInfo {
 }
 
 export interface IComment {
+  id?: number;
+  userid: string;
+  movieid: string;
+  text: string;
+  time?: number;
+}
+export interface IFrontComment {
   id: string;
   username: string;
   avatar?: string;
   text: string;
+  time: number;
 }
 
 export interface IUser {

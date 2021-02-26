@@ -9,5 +9,5 @@
     "resolveJsonModule": true
   },
   "lib": ["es2015"],
-  "watch": ["db", "model", "server", "./index.js"]
+  "watch": ["db", "model", "server", "./index.ts"]
 }

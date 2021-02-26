@@ -1,9 +1,9 @@
-import { Pool, QueryConfig, QueryResult } from 'pg';
+import { Pool, QueryResult } from 'pg';
 import { DSN } from './config';
 import log from '../../logger/logger';
-import { dbToIMovie, IMDBMovie } from '../../server/imdb';
-import { ITorrent } from '../../server/torrents';
-import { isMovie } from 'imdb-api/lib/interfaces';
+import { IMDBMovie } from '../../server/imdb';
+import { FullTorrent, ITorrent, parseSize } from '../../server/torrents';
+import { IDBMovie, IMovie } from '../../model/model';
 
 log.debug('creating pool');
 const pool = new Pool({
@@ -13,30 +13,21 @@ const pool = new Pool({
 });
 log.debug('pool created', pool);
 log.debug('testing connection');
-pool.connect().then((client) => {
-  return client
-    .query('SELECT NOW()', [])
-    .then((res) => {
-      client.release();
-      log.debug('SELECT NOW() response: ', res);
-    })
-    .catch((err) => log.error('SELECT NOW() error', err));
-});
 
-export const query = async (
+export async function query(
   text: string,
-  values: (string | number)[] = []
-): Promise<QueryResult<any>> => {
+  values: (string | number | Date)[] = []
+): Promise<QueryResult<any>> {
   try {
     const start = Date.now();
-    log.info('Executing query', { text, values });
+    log.debug('Executing query', { text, values });
     const res = await pool.query({ text, values });
     const duration = Date.now() - start;
     log.info('Executed query', { text, duration, rows: res.rowCount });
-    log.debug('Result:', res.rows);
+    log.trace('Result:', res.rows);
     return res;
   } catch (e) {
-    log.error(e);
+    log.error(e, text, values);
     return {
       rows: [],
       command: text.split(' ')[0],
@@ -45,7 +36,7 @@ export const query = async (
       fields: [],
     };
   }
-};
+}
 
 export const getClient = async () => {
   const client = await pool.connect();
@@ -73,59 +64,39 @@ export const getClient = async () => {
   return client;
 };
 
-export const initDatabase = async () => {
-  const createMoviesTable = `CREATE TABLE IF NOT EXISTS movies (
-      id VARCHAR(16) PRIMARY KEY,
-      title TEXT NOT NULL,
-      image TEXT NOT NULL,
-      rating VARCHAR(10) DEFAULT '0',
-      views VARCHAR(10) DEFAULT '0',
-      year VARCHAR(9) NOT NULL,
-      runtimeMins VARCHAR(10) DEFAULT '0',
-      plot TEXT DEFAULT '',
-      genres TEXT NOT NULL DEFAULT '',
-      countries TEXT,
-      contentRating TEXT,
-      imDbRating VARCHAR(10) NOT NULL,
-      directors TEXT DEFAULT '',
-      directorList TEXT,
-      stars TEXT DEFAULT '',
-      actorList TEXT,
-      keywordList TEXT,
-      images TEXT
-   );`;
-  log.debug('init database');
-  // const dropTableQuery = `DROP TABLE IF EXISTS movies`;
-  // await query(dropTableQuery);
-  const res = await query(createMoviesTable);
-  log.debug('Create movies table', res);
+export const getMovieFromDB = async (torrent: ITorrent): Promise<IDBMovie> => {
+  try {
+    const res = torrent.torrent.imdb
+      ? await query(`SELECT * FROM movies WHERE id='${torrent.torrent.imdb}'`)
+      : await query(
+          `SELECT * FROM movies WHERE title LIKE '%${torrent.movieTitle}%'`
+        );
+    log.debug('[getMovieFromDB]', res.rows);
+    return res.rows[0];
+  } catch (e) {
+    log.error(e);
+    return null;
+  }
 };
 
-export const getMovieFromDB = async (torrent: ITorrent) => {
-  const res = torrent.torrent.imdb
-    ? await query(`SELECT * FROM movies WHERE id='${torrent.torrent.imdb}'`)
-    : await query(
-        `SELECT * FROM movies WHERE title LIKE '%${torrent.movieTitle}%'`
-      );
-  log.debug('getMovieFromDB', res);
-  return res.rowCount ? dbToIMovie(res.rows[0], torrent) : null;
-};
-
-export const saveMovieToDB = (movie: IMDBMovie) => {
-  log.debug('saveMovieToDB', movie);
+export const saveMovieToDB = async (movie: IMDBMovie) => {
+  log.debug('[saveMovieToDB]', movie);
   try {
     query(
-      `INSERT INTO movies(id, title, image, year, genres, rating, views,
+      `INSERT INTO movies (id, title, image, year, genres, rating, views,
 runtimeMins, contentRating, countries, plot, directors, directorList, stars, actorList, keywordList, images, imDbRating)
-values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+ON CONFLICT (id) DO UPDATE SET (title, image, year, genres,
+runtimeMins, contentRating, countries, plot, directors, directorList, stars, actorList, keywordList, images, imDbRating)
+= ($2, $3, $4, $5, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) WHERE movies.id = $1`,
       [
         movie.id,
         movie.title,
         movie.image,
         movie.year,
         movie.genres,
-        0,
-        0,
+        '0',
+        '0',
         movie.runtimeMins || '0',
         movie.contentRating || null,
         movie.countries || null,
@@ -140,22 +111,21 @@ values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $
       ]
     );
   } catch (e) {
-    updateMovieInDB(movie);
     log.debug(movie);
     log.error(e);
   }
 };
 
 export const updateMovieInDB = async (movie: IMDBMovie) => {
-  log.debug('updateMovieInDB', movie);
+  log.debug('[updateMovieInDB]', movie);
   try {
     const res = await query(`SELECT * FROM movies WHERE id=${movie.id}`);
     const prevValue = res.rows[0];
     query(
-      `UPDATE movies set (title, image, year, genres,
+      `UPDATE movies SET (title, image, year, genres,
 runtimeMins, contentRating, countries, plot, directors, directorList, stars, actorList, keywordList, images, imDbRating)
 = ($2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-where id = $1`,
+WHERE movies.id = $1`,
       [
         movie.id,
         movie.title,
@@ -181,6 +151,28 @@ where id = $1`,
     );
   } catch (e) {
     log.debug(movie);
+    log.error(e);
+  }
+};
+
+export const saveTorrentInDB = (torrent: ITorrent, movie: IMovie) => {
+  try {
+    const trnt = torrent.torrent;
+    query(
+      `INSERT INTO torrents
+    (movieid, torrentname, magnet, torrent, seeds, peers, size)
+    values ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        movie.id,
+        torrent.torrentTitle,
+        trnt.magnet,
+        trnt.torrent,
+        trnt.seeds,
+        trnt.peers,
+        parseSize(trnt.size),
+      ]
+    );
+  } catch (e) {
     log.error(e);
   }
 };

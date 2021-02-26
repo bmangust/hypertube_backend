@@ -27,7 +27,7 @@ export default function addHandlers(app: Express) {
           .status(404);
     } catch (e) {
       log.error(`Error getting torrents: ${e}`);
-      res.json(utils.createErrorResponse(e)).status(500);
+      res.json(utils.createErrorResponse('Error getting torrents')).status(500);
     }
   });
 }

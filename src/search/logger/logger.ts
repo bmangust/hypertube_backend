@@ -10,7 +10,7 @@ enum LEVEL {
 }
 
 const time = () => dayjs().format('YYYY-MM-DDTHH:mm:ss.SSS');
-const level = process.env.SEARCH_LOG_LEVEL || 'DEBUG';
+const level = process.env.LOG_LEVEL || 'DEBUG';
 const MODULE = 'search';
 const getFileAndLineNumber = () => {
   let initiator = 'unknown place';
