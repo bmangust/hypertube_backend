@@ -104,6 +104,14 @@ export const initDatabase = async () => {
     size      NUMERIC,
     CHECK (magnet IS NOT NULL OR torrent IS NOT NULL)
   );`;
+
+  const createRatingTable = `CREATE TABLE IF NOT EXISTS user_ratings (
+    id        SERIAL PRIMARY KEY,
+    userid    INTEGER NOT NULL,
+    movieid   VARCHAR(16) NOT NULL REFERENCES movies(id),
+    vote    integer NOT NULL,
+    UNIQUE (userid, movieid)
+  );`;
   log.debug('[initDatabase]');
   // const dropTableQuery = `DROP TABLE IF EXISTS movies`;
   // await query(dropTableQuery);
@@ -111,6 +119,8 @@ export const initDatabase = async () => {
   log.trace('Create movies table', res);
   res = await query(createCommentsTable);
   log.trace('Create comments table', res);
+  res = await query(createRatingTable);
+  log.trace('Create rating table', res);
   res = await query(createTorrentsTable);
   log.trace('Create torrents table', res);
 };

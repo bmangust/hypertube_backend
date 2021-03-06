@@ -28,17 +28,20 @@ export function addMoviesHandlers(app: Express) {
         const movie = await getMovieInfo(id);
         log.debug('[GET /movies] movieById:', movie);
         if (movie) res.json(createSuccessResponse([movie])).status(200);
-        else res.json(createSuccessResponse(null)).status(200);
+        else res.json(createErrorResponse(null)).status(404);
         return;
       }
 
       const movies = await getMovies(limit, offset);
       if (movies) res.json(createSuccessResponse(movies)).status(200);
-      else res.json(createSuccessResponse(null)).status(200);
+      else res.json(createErrorResponse(null)).status(404);
     } catch (e) {
       log.error(`Error getting movies: ${e}`);
       res.json(createErrorResponse('Error getting movies')).status(500);
     }
+  });
+  app.get('genres', async (req, res) => {
+    log.debug(req);
   });
 }
 
@@ -49,19 +52,18 @@ export function addRatingHandlers(app: Express) {
     log.debug(req.body, headers, cookies);
 
     try {
-      // if (!headers.accessToken)
-      //   //&& checkToken(headers.accessToken))
-      //   return res.json(createErrorResponse('Not authorized')).status(401);
       const rating = (+req.body?.rating as IRating) || null;
-      const id = (req.body?.id as string) || null;
-      log.debug(`rating: ${rating}, id: ${id}`);
-      if (rating === null || !id)
+      const movieid = (req.body?.movieId as string) || null;
+      const token = (req.headers.accesstoken as string) || '';
+      log.debug(`rating: ${rating}, movieid: ${movieid}, token: ${token}`);
+
+      if (rating === null || !movieid || !token)
         return res
-          .json(createErrorResponse('ID and RATING are required'))
+          .json(createErrorResponse('accessToken, ID and RATING are required'))
           .status(400);
-      const newRating = await updateMovieRating(id, rating);
-      if (newRating) res.json(createSuccessResponse(newRating)).status(200);
-      else res.json(createSuccessResponse(null)).status(200);
+
+      const newRating = await updateMovieRating(movieid, rating, token);
+      res.json(createSuccessResponse(newRating)).status(200);
     } catch (e) {
       log.error(`Error getting movies: ${e}`);
       res.json(createErrorResponse('Error getting movies')).status(500);
@@ -71,12 +73,12 @@ export function addRatingHandlers(app: Express) {
 
 export function addCommentsHandlers(app: Express) {
   app.get('/comments', async (req, res) => {
-    log.trace(req);
+    log.debug(req.query);
     const limit = +req.query.limit || 5;
-    const offset = +req.query.limit || 0;
-    const movieid = req.query.movieid as string;
+    const offset = +req.query.offset || 0;
+    const movieId = req.query.movieId as string;
     try {
-      const comments = await selectCommentsByMovieID(movieid, limit, offset);
+      const comments = await selectCommentsByMovieID(movieId, limit, offset);
       res.json(createSuccessResponse(comments)).status(200);
     } catch (e) {
       log.error(`Error getting comments: ${e}`);

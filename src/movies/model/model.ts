@@ -83,6 +83,7 @@ export interface IMovieInfo {
   year: number;
   genres: GenresKeys[];
   rating: number;
+  imdbRating: number;
   views: number;
   length: number;
   pgRating: string;
@@ -109,7 +110,7 @@ export interface IComment {
   time?: number;
 }
 export interface IFrontComment {
-  id: string;
+  commentid: string;
   username: string;
   avatar?: string;
   movieid: string;

@@ -3,7 +3,7 @@ import { IComment, IFrontComment } from '../../model/model';
 import { query } from './postgres';
 
 export const selectCommentById = async (id: number): Promise<IFrontComment> => {
-  log.debug('[selectComment]', id);
+  log.debug('[selectCommentById]', id);
   if (!id) throw new Error('comment id is missing');
   try {
     const res = await query(
@@ -34,12 +34,12 @@ export const selectCommentsByMovieID = async (
   limit: number = 20,
   offset: number = 0
 ): Promise<IFrontComment[]> => {
-  log.debug('[selectComment]', id);
-  if (!id) throw new Error('comment id is missing');
+  log.debug('[selectCommentsByMovieID] movieid: ', id);
+  if (!id) throw new Error('Movie id is missing');
   try {
     const res = await query(
       `SELECT
-        id,
+        id as commentid,
         movieid,
         text,
         u.image_body AS avatar,

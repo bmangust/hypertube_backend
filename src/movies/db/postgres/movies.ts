@@ -19,7 +19,11 @@ const selectMovieFromDB = async (
     if (!id && !title)
       throw new Error('[selectMovieFromDB] Both movieID and title are missing');
     const res = id
-      ? await query(`SELECT id as imdbid, * FROM movies WHERE id='${id}'`)
+      ? await query(
+          `with c as (select count(c.id) maxcomments from comments c where movieid=$1)
+          SELECT m.id as imdbid, c.*, m.* FROM movies m, c WHERE m.id=$1`,
+          [id]
+        )
       : await query(
           `SELECT id as imdbid, * FROM movies WHERE title LIKE '%${title}%'`
         );
@@ -43,6 +47,7 @@ const dbToIMovie = (row: IDBMovie, comments?: IFrontComment[]): IMovie => {
       avalibility: 0,
       year: +row.year,
       genres: (row.genres.split(', ') as unknown) as GenresKeys[],
+      imdbRating: +row.imdbrating,
       rating: +row.rating,
       views: +row.views,
       length: +row.runtimemins,
@@ -56,20 +61,62 @@ const dbToIMovie = (row: IDBMovie, comments?: IFrontComment[]): IMovie => {
       keywords: row.keywordlist?.split(','),
       photos: row.images ? JSON.parse(row.images) : undefined,
       comments: comments?.slice(0, defaultNumberOfCommentsToLoad),
-      maxComments: comments ? comments.length : +row.maxcomments,
+      maxComments: comments ? comments.length : +row.maxcomments || 0,
     },
   };
+};
+
+const updateUserVoteList = async (
+  movieId: string,
+  vote: IRating,
+  userId: number
+) => {
+  log.debug(userId);
+  const res = await query(
+    `INSERT INTO user_ratings (movieid, userid, vote) VALUES ($1, $2, $3)
+    ON CONFLICT (movieid, userid) DO UPDATE SET (movieid, userid, vote) = ($1, $2, $3) WHERE user_ratings.userid=$2`,
+    [movieId, userId, vote]
+  );
+  log.debug(res.rowCount);
+  return res.rowCount > 0;
+};
+
+const isUserVoted = async (movieId: string, userId: number) => {
+  if (Number.isNaN(userId)) throw new Error('userId is not valid');
+  log.debug(userId);
+  const res = await query(
+    'SELECT * FROM user_ratings WHERE userid=$1 and movieid=$2',
+    [userId, movieId]
+  );
+  log.debug(res.rowCount);
+  return res.rowCount > 0;
+};
+
+const getUserIdFromToken = (token: string) => {
+  return +JSON.parse(
+    Buffer.from(
+      Buffer.from(token, 'base64').toString().split('.')[0],
+      'base64'
+    ).toString()
+  ).userId;
 };
 
 // ========== exported =============
 
 export const updateMovieRating = async (
   movieId: string,
-  vote: IRating
-): Promise<string> => {
+  vote: IRating,
+  token: string
+): Promise<string | null> => {
   try {
+    const userId = getUserIdFromToken(token);
+    if (!userId) throw new Error(`Can't parse userId: ${userId}, token: ${token}`);
     const movie = await selectMovieFromDB(movieId);
     if (!movie) throw new Error(`MovieID ${movieId} not found`);
+    // const userVoted = await isUserVoted(movieId, userId);
+    // log.debug('userVoted:', userVoted, userId);
+    // if (userVoted) return null;
+    updateUserVoteList(movieId, vote, userId);
     const newRating = (
       (+movie.rating * +movie.votes + vote) /
       (+movie.votes + 1)
@@ -167,8 +214,8 @@ export const getMovieInfo = async (movieid: string): Promise<IMovie> => {
   try {
     const movie = await selectMovieFromDB(movieid);
     if (!movie) throw new Error('Movie not found');
-    const comments = await selectCommentsByMovieID(movieid);
-    return dbToIMovie(movie, comments);
+    // const comments = await selectCom mentsByMovieID(movieid);
+    return dbToIMovie(movie);
   } catch (e) {
     log.error(e);
     return null;

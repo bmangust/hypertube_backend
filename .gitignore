@@ -8,6 +8,10 @@ data
 node_modules
 dist
 
+storage
+torrentClient
+magnetConverter
+
 !package.json
 !package-lock.json
 !tsconfig.json
