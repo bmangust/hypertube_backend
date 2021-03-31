@@ -20,7 +20,12 @@ export async function query(
     log.trace('Executing query', { text, values });
     const res = await pool.query({ text, values });
     const duration = Date.now() - start;
-    log.info('Executed query', { text, values, duration, rows: res.rowCount });
+    log.info('Executed query', {
+      text,
+      values,
+      duration,
+      rows: res.rowCount,
+    });
     log.trace('Result:', res.rows);
     return res;
   } catch (e) {
@@ -59,68 +64,4 @@ export const getClient = async () => {
     return release.apply(client);
   };
   return client;
-};
-
-export const initDatabase = async () => {
-  const createMoviesTable = `CREATE TABLE IF NOT EXISTS movies (
-    id              VARCHAR(16) PRIMARY KEY,
-    title           TEXT NOT NULL,
-    image           TEXT NOT NULL,
-    rating          VARCHAR(10) DEFAULT '0',
-    votes           VARCHAR(10) DEFAULT '0',
-    views           VARCHAR(10) DEFAULT '0',
-    year            VARCHAR(9) NOT NULL,
-    runtimeMins     VARCHAR(10) DEFAULT '0',
-    plot            TEXT DEFAULT '',
-    genres          TEXT NOT NULL DEFAULT '',
-    countries       TEXT,
-    contentRating   TEXT,
-    imDbRating      VARCHAR(10) NOT NULL,
-    directors       TEXT DEFAULT '',
-    directorList    TEXT,
-    stars           TEXT DEFAULT '',
-    actorList       TEXT,
-    keywordList     TEXT,
-    images          TEXT
-  );`;
-
-  const createCommentsTable = `CREATE TABLE IF NOT EXISTS comments (
-    id        SERIAL PRIMARY KEY,
-    userid    INT4 NOT NULL,
-    movieid   VARCHAR(16) NOT NULL REFERENCES movies(id),
-    text      TEXT NOT NULL,
-    time      TIMESTAMP DEFAULT current_timestamp
-  );`;
-
-  // size in GB
-  const createTorrentsTable = `CREATE TABLE IF NOT EXISTS torrents (
-    id        SERIAL PRIMARY KEY,
-    movieid   VARCHAR(16) NOT NULL REFERENCES movies(id),
-    torrentname TEXT NOT NULL,
-    magnet    TEXT UNIQUE,
-    torrent   BYTEA UNIQUE,
-    seeds     INTEGER DEFAULT 0,
-    peers     INTEGER DEFAULT 0,
-    size      NUMERIC,
-    CHECK (magnet IS NOT NULL OR torrent IS NOT NULL)
-  );`;
-
-  const createRatingTable = `CREATE TABLE IF NOT EXISTS user_ratings (
-    id        SERIAL PRIMARY KEY,
-    userid    INTEGER NOT NULL,
-    movieid   VARCHAR(16) NOT NULL REFERENCES movies(id),
-    vote    integer NOT NULL,
-    UNIQUE (userid, movieid)
-  );`;
-  log.debug('[initDatabase]');
-  // const dropTableQuery = `DROP TABLE IF EXISTS movies`;
-  // await query(dropTableQuery);
-  let res = await query(createMoviesTable);
-  log.trace('Create movies table', res);
-  res = await query(createCommentsTable);
-  log.trace('Create comments table', res);
-  res = await query(createRatingTable);
-  log.trace('Create rating table', res);
-  res = await query(createTorrentsTable);
-  log.trace('Create torrents table', res);
 };

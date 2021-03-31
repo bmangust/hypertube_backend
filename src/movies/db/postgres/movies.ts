@@ -6,8 +6,12 @@ import {
   IDBMovie,
   IFrontComment,
   IMovie,
+  IKinopoiskMovie,
+  ITranslatedMovie,
+  IDBTorrent,
 } from '../../model/model';
 import { selectCommentsByMovieID } from './comments';
+import axios from 'axios';
 
 export type IRating = 1 | 2 | 3 | 4 | 5;
 
@@ -35,16 +39,21 @@ const selectMovieFromDB = async (
   }
 };
 
-const dbToIMovie = (row: IDBMovie, comments?: IFrontComment[]): IMovie => {
+const dbToIMovie = (
+  row: IDBMovie,
+  comments?: IFrontComment[],
+  torrent?: IDBTorrent
+): IMovie => {
   log.trace('[dbToIMovie]', row);
   const defaultNumberOfCommentsToLoad = 5;
+  const avalibility = torrent ? torrent.seeds + torrent.peers * 0.1 : 0;
   return {
     id: row.imdbid,
     title: row.title,
     img: row.image,
     src: '',
     info: {
-      avalibility: 0,
+      avalibility: avalibility,
       year: +row.year,
       genres: (row.genres.split(', ') as unknown) as GenresKeys[],
       imdbRating: +row.imdbrating,
@@ -81,6 +90,13 @@ const updateUserVoteList = async (
   return res.rowCount > 0;
 };
 
+const getTorrentFromDB = async (movieId: string) => {
+  log.debug(movieId);
+  const res = await query('SELECT * FROM torrents WHERE movieid=$1', [movieId]);
+  log.debug(res.rowCount);
+  return res.rowCount > 0;
+};
+
 const isUserVoted = async (movieId: string, userId: number) => {
   if (Number.isNaN(userId)) throw new Error('userId is not valid');
   log.debug(userId);
@@ -101,6 +117,36 @@ const getUserIdFromToken = (token: string) => {
   ).userId;
 };
 
+const isIMovie = (movie: IMovie | unknown): movie is IMovie => {
+  return (
+    (movie as IMovie).id !== undefined && (movie as IMovie).info !== undefined
+  );
+};
+
+const loadKinopoiskTranslation = async (en: IMovie): Promise<IMovie> => {
+  try {
+    const host = process.env.SEARCH_API_HOST || 'localhost';
+    const res = await axios(
+      `http://${host}:${process.env.SEARCH_API_PORT}/translate`,
+      {
+        params: {
+          imdbid: en.id,
+          title: en.title,
+        },
+      }
+    );
+    log.info('[getMovieInfo] got russian translation', res.data);
+    if (!res.data.status)
+      throw new Error('[loadKinopoiskTranslation] translation loading error');
+    if (!isIMovie(res.data.data))
+      throw new Error('[loadKinopoiskTranslation] wrong return type');
+    return res.data.data;
+  } catch (e) {
+    log.error(e);
+    return null;
+  }
+};
+
 // ========== exported =============
 
 export const updateMovieRating = async (
@@ -110,7 +156,8 @@ export const updateMovieRating = async (
 ): Promise<string | null> => {
   try {
     const userId = getUserIdFromToken(token);
-    if (!userId) throw new Error(`Can't parse userId: ${userId}, token: ${token}`);
+    if (!userId)
+      throw new Error(`Can't parse userId: ${userId}, token: ${token}`);
     const movie = await selectMovieFromDB(movieId);
     if (!movie) throw new Error(`MovieID ${movieId} not found`);
     // const userVoted = await isUserVoted(movieId, userId);
@@ -208,14 +255,30 @@ WHERE movies.id = $1`,
   }
 };
 
-export const getMovieInfo = async (movieid: string): Promise<IMovie> => {
-  log.debug('[selectMovies]', movieid);
+export const getMovieInfo = async (
+  movieid: string
+): Promise<ITranslatedMovie> => {
+  log.debug('[getMovieInfo]', movieid);
   if (!movieid) throw new Error('comment id is missing');
   try {
-    const movie = await selectMovieFromDB(movieid);
-    if (!movie) throw new Error('Movie not found');
-    // const comments = await selectCom mentsByMovieID(movieid);
-    return dbToIMovie(movie);
+    let movie = null;
+    const enMovie = await selectMovieFromDB(movieid);
+    if (!enMovie) throw new Error('En movie not found');
+    const en = dbToIMovie(enMovie);
+    let ruMovie = await getKinopoiskMovieFromDB(movieid);
+    if (ruMovie) {
+      const ru = KinoDBToIMovie(ruMovie);
+      movie = { en, ru };
+    } else {
+      const ru = await loadKinopoiskTranslation(en);
+      log.info('[getMovieInfo] loaded russian translationE302fcvm_8', ru);
+
+      if (!ru) movie = { en, ru: en };
+      movie = { en, ru: ru };
+    }
+    // const comments = await selectCommentsByMovieID(movieid);
+    log.info('[getMovieInfo] full movie', movie);
+    return movie;
   } catch (e) {
     log.error(e);
     return null;
@@ -248,4 +311,40 @@ export const getMovies = async (limit: number = 5, offset: number = 0) => {
     log.error(e);
     return null;
   }
+};
+
+export const getKinopoiskMovieFromDB = async (
+  id: string
+): Promise<IKinopoiskMovie | null> => {
+  try {
+    const res = await query(
+      'SELECT id as kinoid, * FROM kinopoisk WHERE imdbid=$1',
+      [id]
+    );
+    if (res.rowCount) return res.rows[0] as IKinopoiskMovie;
+  } catch (e) {
+    log.error(e);
+  }
+  return null;
+};
+
+export const KinoDBToIMovie = (movie: IKinopoiskMovie): IMovie => {
+  return {
+    id: movie.kinoid,
+    title: movie.nameru,
+    img: movie.posterurlpreview,
+    src: '',
+    info: {
+      avalibility: 0,
+      year: 0,
+      genres: [],
+      rating: 0,
+      views: 0,
+      imdbRating: 0,
+      length: 0,
+      pgRating: null,
+      countries: [],
+      description: movie.description || '',
+    },
+  };
 };

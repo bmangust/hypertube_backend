@@ -1,5 +1,5 @@
 const dayjs = require('dayjs');
-import { cyan, green, magenta, red, yellow } from './colors';
+import { blue, cyan, magenta, red, yellow } from './colors';
 
 enum LEVEL {
   TRACE = 0,
@@ -22,7 +22,7 @@ const getFileAndLineNumber = () => {
       const path =
         process.env.NODE_ENV === 'production' ? 'dist/db/' : `/src/${MODULE}/`;
       const regex = new RegExp(`^\\s*at\\s+.*(${path}.+)\/([\\w:.]+)`);
-      console.log(regex);
+      // console.log(regex);
       const matches = lines[3].match(regex);
       if (matches) {
         initiator = `${matches[1]} at ${matches[2]}`;
@@ -57,7 +57,7 @@ const logger = {
   },
   info: (...rest) => {
     if (LEVEL[level] <= LEVEL.INFO) {
-      console.log(green(`${time()} : I : ${getFileAndLineNumber()} `), ...rest);
+      console.log(blue(`${time()} : I : ${getFileAndLineNumber()} `), ...rest);
     }
   },
   warn: (...rest) => {

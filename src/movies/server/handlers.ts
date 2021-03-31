@@ -10,9 +10,11 @@ import {
   updateComment,
 } from '../db/postgres/comments';
 import {
+  getKinopoiskMovieFromDB,
   getMovieInfo,
   getMovies,
   IRating,
+  KinoDBToIMovie,
   updateMovieRating,
 } from '../db/postgres/movies';
 
@@ -32,7 +34,11 @@ export function addMoviesHandlers(app: Express) {
         return;
       }
 
-      const movies = await getMovies(limit, offset);
+      const ens = await getMovies(limit, offset);
+      log.info('[addMoviesHandlers] got en movies', ens);
+      const movies = await Promise.all(ens.map((en) => getMovieInfo(en.id)));
+      log.info('[addMoviesHandlers] got ru movies', movies);
+
       if (movies) res.json(createSuccessResponse(movies)).status(200);
       else res.json(createErrorResponse(null)).status(404);
     } catch (e) {

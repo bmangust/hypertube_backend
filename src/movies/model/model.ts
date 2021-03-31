@@ -70,6 +70,31 @@ export interface IDBMovie {
   maxcomments: string;
 }
 
+export interface IDBTorrent {
+  movieid: string;
+  torrentname: string;
+  torrent: Blob;
+  magnet: string;
+  seeds: number;
+  peers: number;
+  size: number;
+}
+
+export interface ITranslatedMovie {
+  en: IMovie;
+  ru: IMovie;
+}
+
+export interface IKinopoiskMovie {
+  kinoid: string;
+  imdbid: string;
+  nameen: string;
+  nameru: string;
+  description?: string;
+  posterurl?: string;
+  posterurlpreview?: string;
+}
+
 export interface IMovie {
   id: string;
   title: string;

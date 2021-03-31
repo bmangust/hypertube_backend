@@ -5,13 +5,11 @@ import {
   addRatingHandlers,
 } from './handlers';
 import cors from 'cors';
-import { initDatabase } from '../db/postgres/postgres';
 import log from '../logger/logger';
 const bodyParser = require('body-parser').json();
 
 export default function startServer() {
   const port = process.env.MOVIES_API_PORT || '2223';
-  initDatabase();
 
   const app = express();
 

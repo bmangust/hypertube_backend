@@ -1,5 +1,5 @@
 const dayjs = require('dayjs');
-import { cyan, green, magenta, red, yellow } from './colors';
+import { blue, cyan, magenta, red, yellow } from './colors';
 
 const MODULE = 'movies';
 enum LEVEL {
@@ -56,7 +56,7 @@ const logger = {
   },
   info: (...rest) => {
     if (LEVEL[level] <= LEVEL.INFO) {
-      console.log(green(`${time()} : I : ${getFileAndLineNumber()} `), ...rest);
+      console.log(blue(`${time()} : I : ${getFileAndLineNumber()} `), ...rest);
     }
   },
   warn: (...rest) => {

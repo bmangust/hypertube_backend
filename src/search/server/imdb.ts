@@ -1,17 +1,18 @@
 import axios from 'axios';
-import { json } from 'express';
-import { QueryResultRow } from 'pg';
 import {
   getMovieFromDB,
+  insertTorrentIntoLoadedFiles,
   saveMovieToDB,
   saveTorrentInDB,
 } from '../db/postgres/postgres';
 import log from '../logger/logger';
 import { GenresKeys, IDBMovie, IMovie } from '../model/model';
-import { FullTorrent, ITorrent } from './torrents';
+import { serachIMDBMovie } from './imdbApi';
+import { ITranslatedMovie, translateMovie } from './kinopoisk';
+import { ITorrent } from './torrents';
 const nameToImdb = require('name-to-imdb');
 
-interface IMDBPerson {
+export interface IMDBPerson {
   id: string;
   name: string;
   image?: string;
@@ -68,7 +69,7 @@ const isInfoFull = ({
   directors,
   stars,
 }: IMDBMovie) => {
-  return (
+  return !!(
     id?.length &&
     title?.length &&
     year?.length &&
@@ -80,9 +81,9 @@ const isInfoFull = ({
   );
 };
 
-export const removeDuplicates = (movies: IMovie[]) => {
-  return movies.reduce((acc: IMovie[], cur) => {
-    return !cur || acc.find((movie) => movie.id === cur.id)
+export const removeDuplicates = (movies: ITranslatedMovie[]) => {
+  return movies.reduce((acc: ITranslatedMovie[], cur) => {
+    return !cur || acc.find((movie) => movie.en.id === cur.en.id)
       ? acc
       : [...acc, cur];
   }, []);
@@ -107,29 +108,45 @@ export const getIMDBInfo = async (
   }
 };
 
+const isIMDBMovie = (movie: IMDBMovie | unknown): movie is IMDBMovie => {
+  return !!(
+    movie &&
+    (movie as IMDBMovie).id &&
+    (movie as IMDBMovie).title &&
+    (movie as IMDBMovie).year &&
+    (movie as IMDBMovie).image &&
+    (movie as IMDBMovie).plot &&
+    (movie as IMDBMovie).genres
+  );
+};
+
 const searchMovieInIMDB = async (torrent: ITorrent) => {
-  let id = torrent.torrent.imdb || '';
-  if (id === '') {
-    const search = await axios(
-      `https://imdb-api.com/en/API/Search/${process.env.IMDB_API_KEY}/${torrent.movieTitle} ${torrent.year}`,
+  try {
+    let id = torrent.torrent.imdb || '';
+    if (id === '') {
+      const search = await axios(
+        `https://imdb-api.com/en/API/Search/${process.env.IMDB_API_KEY}/${torrent.movieTitle} ${torrent.year}`,
+        { validateStatus: (status) => status >= 200 && status < 500 }
+      );
+      log.debug('[searchMovieInIMDB] SEARCH result', search.data);
+      if (search.data.results && search.data.results.length) {
+        id = search.data.results[0]?.id;
+      }
+      if (isInfoFull(search.data.results[0]))
+        return search.data.results[0] as IMDBMovie;
+    }
+    const movie = await axios(
+      `https://imdb-api.com/en/API/Title/${process.env.IMDB_API_KEY}/${id}`,
       { validateStatus: (status) => status >= 200 && status < 500 }
     );
-    log.trace('[searchMovieInIMDB] SEARCH result', search.data);
-    if (search.data.results && search.data.results.length) {
-      id = search.data.results[0]?.id;
-    }
-    if (isInfoFull(search.data.results[0]))
-      return search.data.results[0] as IMDBMovie;
-  }
-  const movie = await axios(
-    `https://imdb-api.com/en/API/Title/${process.env.IMDB_API_KEY}/${id}`,
-    { validateStatus: (status) => status >= 200 && status < 500 }
-  );
-  log.trace('[searchMovieInIMDB] TITLE result', movie?.data);
-  if (movie.data?.id) {
-    log.trace('[searchMovieInIMDB] results', movie.data);
-    return movie.data as IMDBMovie;
-  } else {
+    log.debug('[searchMovieInIMDB] TITLE result', movie.data);
+    if (!movie.data?.id)
+      throw new Error('[searchMovieInIMDB] IMDB movie not found');
+    if (isIMDBMovie(movie.data)) return movie.data as IMDBMovie;
+    log.error('malformed imdb-api.com response', movie.data);
+    throw new Error('[searchMovieInIMDB] malformed imdb-api.com response');
+  } catch (e) {
+    log.error(e);
     return null;
   }
 };
@@ -180,6 +197,7 @@ export const imdbToIMovie = (
       genres: movie.genres?.split(', ') as GenresKeys[],
       rating: 0,
       views: 0,
+      imdbRating: +movie.imDbRating,
       length: +movie.runtimeMins || 0,
       pgRating: movie.contentRating || 'N/A',
       countries: movie.countries?.split(', '),
@@ -207,6 +225,7 @@ export const dbToIMovie = (row: IDBMovie, torrent: ITorrent): IMovie => {
       genres: (row.genres.split(', ') as unknown) as GenresKeys[],
       rating: +row.rating,
       views: +row.views,
+      imdbRating: +row.imdbrating,
       length: +row.runtimemins,
       pgRating: row.contentrating || 'N/A',
       countries: row.countries?.split(', ') || [],
@@ -221,25 +240,38 @@ export const dbToIMovie = (row: IDBMovie, torrent: ITorrent): IMovie => {
   };
 };
 
-export const loadMoviesInfo = (torrents: ITorrent[]): Promise<IMovie[]> => {
+export const loadMoviesInfo = (
+  torrents: ITorrent[]
+): Promise<ITranslatedMovie[] | null> => {
   return Promise.all(
     torrents.map(async (torrent) => {
-      let movie = null;
-      const dbInfo = await getMovieFromDB(torrent);
+      let en: IMovie = null;
+      const dbInfo = await getMovieFromDB(
+        torrent.movieTitle,
+        torrent.torrent.imdb,
+        torrent.year
+      );
       if (dbInfo) {
-        movie = dbToIMovie(dbInfo, torrent);
-        log.debug('movie found in DB: ', movie);
+        en = dbToIMovie(dbInfo, torrent);
+        log.debug('movie found in DB:', en);
       } else {
         log.info(
           `${torrent.movieTitle} was not found in database, now search in IMDB`
         );
-        const IMDBInfo = await getIMDBInfo(torrent);
-        if (IMDBInfo.id) {
+        let IMDBInfo = await serachIMDBMovie(torrent.movieTitle);
+        if (!IMDBInfo?.id) {
+          IMDBInfo = await getIMDBInfo(torrent);
           saveMovieToDB(IMDBInfo);
-          movie = imdbToIMovie(IMDBInfo, torrent);
+          en = imdbToIMovie(IMDBInfo, torrent);
         }
+        saveMovieToDB(IMDBInfo);
+        en = imdbToIMovie(IMDBInfo, torrent);
       }
-      saveTorrentInDB(torrent, movie);
+      if (!en) return null;
+      saveTorrentInDB(torrent, en);
+      insertTorrentIntoLoadedFiles(torrent);
+      const movie = await translateMovie(en);
+      log.info('Translated movie', movie);
       return movie;
     })
   );

@@ -68,6 +68,16 @@ export interface IDBMovie {
   imdbrating: string;
 }
 
+export interface IKinopoiskMovie {
+  kinoid: string;
+  imdbid: string;
+  nameen: string;
+  nameru: string;
+  description?: string;
+  posterurl?: string;
+  posterurlpreview?: string;
+}
+
 export interface IMovie {
   id: string;
   title: string;
