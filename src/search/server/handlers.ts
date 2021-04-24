@@ -47,8 +47,10 @@ export default function addHandlers(app: Express) {
     const search = req.query['search'].toString();
 
     try {
-      let movies = await searchMovies(search, category);
-      if (!movies || !movies.length) movies = await YTSsearch(search);
+      // let movies = await searchMovies(search, category);
+      // if (!movies || !movies.length) movies = await YTSsearch(search);
+      let movies = await YTSsearch(search);
+      // if (!movies) movies = await searchMovies(search, category);
       log.info('[GET /find] found movies', movies);
       if (movies && movies.length)
         res.json(utils.createSuccessResponse(movies)).status(200);

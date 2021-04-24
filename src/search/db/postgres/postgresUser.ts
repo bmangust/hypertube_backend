@@ -38,9 +38,9 @@ export class PostgresUser {
         connectionString: DSN,
         idleTimeoutMillis: 30000,
       });
-      log.info('Mongo connection succeded!');
+      log.info('Postrgres connection succeded!');
     } catch (e) {
-      log.error('Failed to connect to mongo: ', e);
+      log.error('Failed to connect to Postrgres: ', e);
       throw 'Connection error!';
     }
   }

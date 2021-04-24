@@ -1,6 +1,7 @@
 import log from '../../logger/logger';
 import { IComment, IFrontComment } from '../../model/model';
 import { query } from './postgres';
+const POSTGRES_SCHEME = process.env.POSTGRES_SCHEME || 'hypertube';
 
 export const selectCommentById = async (id: number): Promise<IFrontComment> => {
   log.debug('[selectCommentById]', id);
@@ -15,8 +16,8 @@ export const selectCommentById = async (id: number): Promise<IFrontComment> => {
       time,
       u.username AS username
     FROM
-      comments c
-    JOIN users u ON
+    ${POSTGRES_SCHEME}.comments c
+    JOIN ${POSTGRES_SCHEME}.users u ON
       u.user_id = c.userid
       OR u.user_42_id = c.userid
     WHERE
@@ -46,8 +47,8 @@ export const selectCommentsByMovieID = async (
         time,
         u.username AS username
       FROM
-        comments c
-      JOIN users u ON
+      ${POSTGRES_SCHEME}.comments c
+      JOIN ${POSTGRES_SCHEME}.users u ON
         u.user_id = c.userid
         OR u.user_42_id = c.userid
       WHERE
@@ -70,7 +71,7 @@ export const insertComment = (comment: IComment) => {
   else if (!comment.movieid) throw new Error('movieid is missing');
   try {
     return query(
-      `INSERT INTO comments(userid, movieid, text, time)
+      `INSERT INTO ${POSTGRES_SCHEME}.comments(userid, movieid, text, time)
       VALUES ($1, $2, $3, $4) RETURNING *`,
       [userid, movieid, text, time]
     );
@@ -88,7 +89,7 @@ export const updateComment = (comment: IComment) => {
   try {
     if (!id) throw new Error('comment ID id missing');
     return query(
-      `UPDATE comments SET(text, time) = ($2, $3) WHERE id=$1 RETURNING *`,
+      `UPDATE ${POSTGRES_SCHEME}.comments SET(text, time) = ($2, $3) WHERE id=$1 RETURNING *`,
       [id, text, time]
     );
   } catch (e) {
@@ -102,7 +103,10 @@ export const deleteComment = (id: number) => {
   log.debug('[deleteComment]', id);
   try {
     if (!id) throw new Error('comment ID id missing');
-    return query(`DELETE FROM comments WHERE id=$1 RETURNING id`, [id]);
+    return query(
+      `DELETE FROM ${POSTGRES_SCHEME}.comments WHERE id=$1 RETURNING id`,
+      [id]
+    );
   } catch (e) {
     log.error(e);
     return null;

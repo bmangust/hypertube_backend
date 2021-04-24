@@ -7,7 +7,8 @@ import {
   YTSsearch,
 } from './torrents';
 import log from '../logger/logger';
-import { initDatabase } from '../db/postgres/postgres';
+import { initDatabase } from '../db/postgres/config';
+import { download, writeFileAsync } from './utils';
 const bodyParser = require('body-parser').json();
 
 export default function startServer() {
@@ -23,7 +24,15 @@ export default function startServer() {
   // torrentIndexerSearch("I'm Not There");
   // const movies = searchMovies('Star wars', 'Movies');
   // log.info('got movies', movies);
-  // YTSsearch('star wars');
+  // YTSsearch('American Psycho');
+  // download(
+  //   'https://yts.mx/torrent/download/5AD19028D8880A9AA16B8B4B6E511E31F68B124E'
+  // )
+  //   .then((res) => {
+  //     log.info('[download]', res);
+  //     writeFileAsync('americanPsycho.torrent', res);
+  //   })
+  //   .catch((err) => log.error('[download]', err));
 
   addHandlers(app);
 

@@ -6,6 +6,7 @@ import { ITorrent, parseSize } from '../../server/torrents';
 import { IDBMovie, IKinopoiskMovie, IMovie } from '../../model/model';
 import { utf8ToHex, atob } from '../../server/utils';
 import { IKinopoiskFilmResponse } from '../../server/kinopoisk';
+const POSTGRES_SCHEME = process.env.POSTGRES_SCHEME || 'hypertube';
 
 log.debug('creating pool');
 const pool = new Pool({
@@ -22,10 +23,10 @@ export async function query(
 ): Promise<QueryResult<any>> {
   try {
     const start = Date.now();
-    log.debug('Executing query', { text, values });
+    log.trace('Executing query', { text, values });
     const res = await pool.query({ text, values });
     const duration = Date.now() - start;
-    log.info('Executed query', { text, duration, rows: res.rowCount, values });
+    log.trace('Executed query', { text, duration, rows: res.rowCount, values });
     log.trace('Result:', res.rows);
     return res;
   } catch (e) {
@@ -73,14 +74,19 @@ export const getMovieFromDB = async (
 ): Promise<IDBMovie> => {
   try {
     let res;
-    if (ibdbid) res = await query(`SELECT * FROM movies WHERE id=$1`, [ibdbid]);
+    if (ibdbid)
+      res = await query(`SELECT * FROM ${POSTGRES_SCHEME}.movies WHERE id=$1`, [
+        ibdbid,
+      ]);
     else if (year > 0)
       res = await query(
-        `SELECT * FROM movies WHERE title LIKE '%${title}%' AND year=$1`,
+        `SELECT * FROM ${POSTGRES_SCHEME}.movies WHERE title LIKE '%${title}%' AND year=$1`,
         [year]
       );
     else
-      res = await query(`SELECT * FROM movies WHERE title LIKE '%${title}%'`);
+      res = await query(
+        `SELECT * FROM ${POSTGRES_SCHEME}.movies WHERE title LIKE '%${title}%'`
+      );
     log.debug('[getMovieFromDB]', res.rows);
     return res.rows[0];
   } catch (e) {
@@ -93,7 +99,7 @@ export const saveMovieToDB = async (movie: IMDBMovie) => {
   log.debug('[saveMovieToDB]', movie);
   try {
     query(
-      `INSERT INTO movies (id, title, image, year, genres, rating, views,
+      `INSERT INTO ${POSTGRES_SCHEME}.movies (id, title, image, year, genres, rating, views,
 runtimeMins, contentRating, countries, plot, directors, directorList, stars, actorList, keywordList, images, imDbRating)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 ON CONFLICT (id) DO UPDATE SET (title, image, year, genres,
@@ -130,7 +136,7 @@ export const saveKinopoiskMovieToDB = async (movie: IKinopoiskFilmResponse) => {
   log.debug('[saveKinopoiskMovieToDB]', movie);
   try {
     query(
-      `INSERT INTO kinopoisk (
+      `INSERT INTO ${POSTGRES_SCHEME}.kinopoisk (
         id,
         imdbId,
         nameRu,
@@ -161,7 +167,7 @@ export const getKinopoiskMovieFromDB = async (
 ): Promise<IKinopoiskMovie | null> => {
   try {
     const res = await query(
-      'SELECT id as kinoid, * FROM kinopoisk WHERE imdbid=$1',
+      `SELECT id as kinoid, * FROM ${POSTGRES_SCHEME}.kinopoisk WHERE imdbid=$1`,
       [id]
     );
     if (res.rowCount) return res.rows[0] as IKinopoiskMovie;
@@ -174,10 +180,12 @@ export const getKinopoiskMovieFromDB = async (
 export const updateMovieInDB = async (movie: IMDBMovie) => {
   log.debug('[updateMovieInDB]', movie);
   try {
-    const res = await query(`SELECT * FROM movies WHERE id=${movie.id}`);
+    const res = await query(
+      `SELECT * FROM ${POSTGRES_SCHEME}.movies WHERE id=${movie.id}`
+    );
     const prevValue = res.rows[0];
     query(
-      `UPDATE movies SET (title, image, year, genres,
+      `UPDATE ${POSTGRES_SCHEME}.movies SET (title, image, year, genres,
 runtimeMins, contentRating, countries, plot, directors, directorList, stars, actorList, keywordList, images, imDbRating)
 = ($2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 WHERE movies.id = $1`,
@@ -210,18 +218,18 @@ WHERE movies.id = $1`,
   }
 };
 
-export const saveTorrentInDB = (torrent: ITorrent, movie: IMovie) => {
+export const saveTorrentInDB = (torrent: ITorrent) => {
   try {
     const trnt = torrent.torrent;
     query(
-      `INSERT INTO torrents
+      `INSERT INTO ${POSTGRES_SCHEME}.torrents
     (movieid, torrentname, magnet, torrent, seeds, peers, size)
     values ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (movieid) DO UPDATE SET
     (torrentname, magnet, torrent, seeds, peers, size)
     = ($2, $3, $4, $5, $6, $7) WHERE torrents.movieid=$1`,
       [
-        movie.id,
+        trnt.imdb,
         torrent.torrentTitle,
         trnt.magnet,
         trnt.torrent,
@@ -239,87 +247,12 @@ export const insertTorrentIntoLoadedFiles = (torrent: ITorrent) => {
   try {
     const trnt = torrent.torrent;
     query(
-      `INSERT INTO loaded_files
-    (file_id, torrent_file, file_name, magnet_link)
+      `INSERT INTO ${POSTGRES_SCHEME}.loaded_files
+    (file_id, torrent_file, comment, magnet_link)
     values ($1, $2, $3, $4)`,
-      [
-        torrent.torrent.imdb || utf8ToHex(torrent.movieTitle).slice(0, 16),
-        trnt.torrent,
-        torrent.torrentTitle,
-        trnt.magnet,
-      ]
+      [torrent.torrent.imdb, trnt.torrent, torrent.torrentTitle, trnt.magnet]
     );
   } catch (e) {
     log.error(e);
   }
-};
-
-export const initDatabase = () => {
-  const createMoviesTable = `CREATE TABLE IF NOT EXISTS movies (
-    id              VARCHAR(16) PRIMARY KEY,
-    title           TEXT NOT NULL,
-    image           TEXT NOT NULL,
-    rating          VARCHAR(10) DEFAULT '0',
-    votes           VARCHAR(10) DEFAULT '0',
-    views           VARCHAR(10) DEFAULT '0',
-    year            VARCHAR(9) NOT NULL,
-    runtimeMins     VARCHAR(10) DEFAULT '0',
-    plot            TEXT DEFAULT '',
-    genres          TEXT NOT NULL DEFAULT '',
-    countries       TEXT,
-    contentRating   TEXT,
-    imDbRating      VARCHAR(10) NOT NULL,
-    directors       TEXT DEFAULT '',
-    directorList    TEXT,
-    stars           TEXT DEFAULT '',
-    actorList       TEXT,
-    keywordList     TEXT,
-    images          TEXT
-  );`;
-  const createKinopoiskMoviesTable = `CREATE TABLE IF NOT EXISTS kinopoisk (
-    id              VARCHAR(16) PRIMARY KEY,
-    imdbId          VARCHAR(16) REFERENCES movies(id),
-    nameRu          TEXT NOT NULL,
-    nameEn          TEXT NOT NULL,
-    description     TEXT DEFAULT '',
-    posterUrl       TEXT,
-    posterUrlPreview TEXT
-  );`;
-
-  const createCommentsTable = `CREATE TABLE IF NOT EXISTS comments (
-    id        SERIAL PRIMARY KEY,
-    userid    INT4 NOT NULL,
-    movieid   VARCHAR(16) NOT NULL REFERENCES movies(id),
-    text      TEXT NOT NULL,
-    time      TIMESTAMP DEFAULT current_timestamp
-  );`;
-
-  // size in GB
-  const createTorrentsTable = `CREATE TABLE IF NOT EXISTS torrents (
-    id        SERIAL PRIMARY KEY,
-    movieid   VARCHAR(16) NOT NULL UNIQUE REFERENCES movies(id),
-    torrentname TEXT NOT NULL,
-    magnet    TEXT,
-    torrent   BYTEA,
-    seeds     INTEGER DEFAULT 0,
-    peers     INTEGER DEFAULT 0,
-    size      NUMERIC,
-    CHECK (magnet IS NOT NULL OR torrent IS NOT NULL)
-  );`;
-
-  const createRatingTable = `CREATE TABLE IF NOT EXISTS user_ratings (
-    id        SERIAL PRIMARY KEY,
-    userid    INTEGER NOT NULL,
-    movieid   VARCHAR(16) NOT NULL REFERENCES movies(id),
-    vote    integer NOT NULL,
-    UNIQUE (userid, movieid)
-  );`;
-  log.debug('[initDatabase]');
-  // const dropTableQuery = `DROP TABLE IF EXISTS movies`;
-  // await query(dropTableQuery);
-  query(createMoviesTable);
-  query(createCommentsTable);
-  query(createRatingTable);
-  query(createTorrentsTable);
-  query(createKinopoiskMoviesTable);
 };

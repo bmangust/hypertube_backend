@@ -126,7 +126,7 @@ export const getMovieData = async (imdbId: string): Promise<IMDBMovie> => {
       image: json.image,
       runtimeMins: getDuration(json.duration),
       plot: getPlot(json.description),
-      genres: json.genre.join(', '),
+      genres: json.genre.join ? json.genre.join(', ') : json.genre,
       contentRating: json.contentRating,
       imDbRating: json.aggregateRating?.ratingValue,
       directors: getPersonsString(getPersons(json.director)),

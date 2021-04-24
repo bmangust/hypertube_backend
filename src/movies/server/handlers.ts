@@ -1,7 +1,7 @@
 import { Express } from 'express';
 import { createSuccessResponse, createErrorResponse } from './utils';
 import log from '../logger/logger';
-import { IComment } from '../model/model';
+import { IComment, IMovie, ITranslatedMovie } from '../model/model';
 import {
   deleteComment,
   insertComment,
@@ -10,6 +10,7 @@ import {
   updateComment,
 } from '../db/postgres/comments';
 import {
+  dbToIMovie,
   getKinopoiskMovieFromDB,
   getMovieInfo,
   getMovies,
@@ -34,10 +35,14 @@ export function addMoviesHandlers(app: Express) {
         return;
       }
 
-      const ens = await getMovies(limit, offset);
+      const ens: IMovie[] = (await getMovies(limit, offset)).map((movie) =>
+        dbToIMovie(movie)
+      );
       log.info('[addMoviesHandlers] got en movies', ens);
-      const movies = await Promise.all(ens.map((en) => getMovieInfo(en.id)));
-      log.info('[addMoviesHandlers] got ru movies', movies);
+      const movies: ITranslatedMovie[] = await Promise.all(
+        ens.map((en) => getMovieInfo(en.id))
+      );
+      log.info('[addMoviesHandlers] got translated movies', movies);
 
       if (movies) res.json(createSuccessResponse(movies)).status(200);
       else res.json(createErrorResponse(null)).status(404);
@@ -46,8 +51,31 @@ export function addMoviesHandlers(app: Express) {
       res.json(createErrorResponse('Error getting movies')).status(500);
     }
   });
-  app.get('genres', async (req, res) => {
+  app.get('/genres', async (req, res) => {
     log.debug(req);
+  });
+  app.get('/byname', async (req, res) => {
+    const limit = +req.query.limit || 5;
+    const offset = +req.query.offset || 0;
+    const letter = (req.query.letter as string) || undefined;
+    log.debug('letter:', req.params.letter);
+    try {
+      const response = await getMovies(limit, offset, letter);
+      log.debug('[/byname] got getMovies response', response);
+      const ens: IMovie[] = response.map((movie) => dbToIMovie(movie));
+      log.info(`[/byname] en movies for ${letter}`, ens);
+
+      const movies: ITranslatedMovie[] = await Promise.all(
+        ens.map((en) => getMovieInfo(en.id))
+      );
+      log.info('[/byname] got translated movies', movies);
+
+      if (movies) res.json(createSuccessResponse(movies)).status(200);
+      else res.json(createErrorResponse(null)).status(404);
+    } catch (e) {
+      log.error(`Error getting movies: ${e}`);
+      res.json(createErrorResponse('Error getting movies')).status(500);
+    }
   });
 }
 

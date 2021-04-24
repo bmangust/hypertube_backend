@@ -5,6 +5,7 @@ import TorrentSearchApi, { Torrent } from 'torrent-search-api';
 import log from '../logger/logger';
 import { loadMoviesInfo } from './imdb';
 import { ITranslatedMovie } from './kinopoisk';
+import { download } from './utils';
 const Magnet2torrent = require('magnet2torrent-js');
 const TorrentIndexer = require('torrent-indexer');
 const torrentIndexer = new TorrentIndexer();
@@ -66,7 +67,7 @@ export const parseSize = (size: string) => {
 
 export const enableTorrentSearch = () => {
   TorrentSearchApi.enableProvider('Rarbg');
-  // TorrentSearchApi.enableProvider('ThePirateBay');
+  TorrentSearchApi.enableProvider('ThePirateBay');
   // TorrentSearchApi.enablePublicProviders();
   const activeProviders = TorrentSearchApi.getActiveProviders();
   log.debug('activeProviders', activeProviders);
@@ -188,8 +189,8 @@ const searchFn = async (
 
 export const searchTorrents = async function (
   search: string,
-  category: string = 'Movie',
-  options = { limit: 20, retries: 3 }
+  category: string = 'All',
+  options = { limit: 100, retries: 3 }
 ) {
   log.debug('[Torrents] searchTorrents start');
   try {
@@ -327,41 +328,24 @@ interface IPage {
   year: string;
 }
 
-const readFileAsync = (path: string): Promise<string> => {
-  return new Promise(function (resolve, reject) {
-    readFile(path, (err, data) => {
-      if (!data) reject(err);
-      data ? resolve(data.toString()) : resolve(null);
-    });
-  });
-};
-
 /**
  * Parses page and returns basic torrent info
  * also loads info from IMDB and saves torrent to database
  * @param page IPage
  */
-const getTorrentsFromPage = async (page?: IPage): Promise<ITorrent> => {
+const getTorrentsFromPage = async (page?: IPage): Promise<ITorrent | null> => {
   const title = page.title;
 
   const html = await axios(page.url);
   if (!html.data) throw new Error('Cannot fetch page ' + page.url);
   const root = parse(html.data);
 
-  // no internet stub
-  // const html = await readFileAsync(
-  //   '/Users/a18947461/code/web/hypertube_backend/src/search/server/page.html'
-  // );
-  // log.debug('html', html);
-  // const root = parse(html);
-
   const movieInfo = root.querySelector('#movie-info');
-  log.debug(movieInfo.toString());
+  log.trace(movieInfo.toString());
   const hiddenSM = movieInfo.querySelector('.hidden-sm');
   const hd = hiddenSM
     .querySelectorAll('a')
     .find((el) => el.rawAttributes.title.search(/(720)|(1080)p/) !== -1);
-  log.debug('getTorrentsFromPage', hd);
   // nothing's found
   if (!hd) return null;
 
@@ -370,33 +354,35 @@ const getTorrentsFromPage = async (page?: IPage): Promise<ITorrent> => {
   const resolution =
     hd.rawAttributes.title.search(/720p/) >= 0 ? '720p' : '1080p';
 
-  // log.debug('Found techQuality', techQuality);
-  log.trace('Found resolution', resolution);
+  log.trace('[getTorrentsFromPage] Found resolution', resolution);
   const infoIndex = techQuality.findIndex((el) => el.innerText.match(/720p/));
-  log.trace('index', infoIndex);
+  log.trace('[getTorrentsFromPage] index', infoIndex);
   const specs = root
     .querySelectorAll('.tech-spec-info')
     [infoIndex].querySelectorAll('.tech-spec-element');
-  // log.debug('specs', specs);
   const peersMatch = specs
     .find((el) => el.innerHTML.match(/Peers and Seeds/))
     .innerText.trim()
     .match(/(\d+ \/ \d+)/);
   const peersAndSeeds = peersMatch ? peersMatch[1].split('/') : [0, 0];
-  log.info('peersAndSeeds', peersAndSeeds);
+  log.info('[getTorrentsFromPage] peersAndSeeds', peersAndSeeds);
 
   // download torrent
+  log.info('[getTorrentsFromPage] downloading torrent', hd.rawAttributes.href);
   let res;
   try {
-    res = await axios(hd.rawAttributes.href, {
-      timeout: 1000,
-    });
+    res = await download(hd.rawAttributes.href);
   } catch (e) {
+    log.error('[getTorrentsFromPage] error', e, res);
     res = null;
   }
-  if (!res.data) throw new Error('Could not download torrent');
+  log.info('[getTorrentsFromPage] got torrent', res);
+  if (!res) {
+    console.log('Could not download torrent');
+    return null;
+  }
   // === write file to filesystem (not actually needed) ===
-  writeFileSync(title + '.torrent', res.data);
+  // writeFileSync(title + '.torrent', res.data);
   const torrent = {
     torrentTitle: `${title} (${page.year})`,
     croppedTorrentTitle: '',
@@ -416,7 +402,7 @@ const getTorrentsFromPage = async (page?: IPage): Promise<ITorrent> => {
       provider: 'YTS',
       seeds: +peersAndSeeds[1],
       peers: +peersAndSeeds[0],
-      torrent: Buffer.from(res?.data, 'utf8') || '',
+      torrent: res || '',
     },
   } as ITorrent;
   // const mov = imdbToIMovie(await getIMDBInfo(torrent), torrent);
@@ -434,13 +420,6 @@ export const YTSsearch = async (
   query: string
 ): Promise<ITranslatedMovie[] | null> => {
   try {
-    // getTorrentsFromPage({
-    //   url: '',
-    //   img: '',
-    //   title: "I'm not here",
-    //   year: '2005',
-    // });
-
     const res = await axios(`https://yts.mx/ajax/search`, {
       params: {
         query,
@@ -453,7 +432,9 @@ export const YTSsearch = async (
       if (!pages) return;
       const torrentsPromises = pages.map((page) => getTorrentsFromPage(page));
       log.debug('[YTSsearch] torrentsPromises', torrentsPromises);
-      const torrents = await Promise.all(torrentsPromises);
+      const torrents = (await Promise.all(torrentsPromises)).filter(
+        (torrent) => torrent
+      );
       log.debug('[YTSsearch] found torrents', torrents);
       const movies = await loadMoviesInfo(torrents);
       log.info('[YTSsearch] found movies', movies);
@@ -465,21 +446,3 @@ export const YTSsearch = async (
     return null;
   }
 };
-
-/*
-
-  {
-    fileName: 'The Hobbit (1977) 1080p',
-    seeders: 48,
-    leechers: 7,
-    size: '1.32 GB',
-    length: 1417339208,
-    uploaded: '2020-01-16',
-    link: 'https://yts.mx/torrent/download/F4C1F4EE404A3793EE1EC620B11E56F324CAB521',
-    year: 1977,
-    resolution: '1080p',
-    title: 'The Hobbit',
-    score: 0.333,
-    sourceName: 'YTS'
-  }
-*/

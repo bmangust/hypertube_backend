@@ -268,7 +268,8 @@ export const loadMoviesInfo = (
         en = imdbToIMovie(IMDBInfo, torrent);
       }
       if (!en) return null;
-      saveTorrentInDB(torrent, en);
+      torrent.torrent.imdb = en.id;
+      saveTorrentInDB(torrent);
       insertTorrentIntoLoadedFiles(torrent);
       const movie = await translateMovie(en);
       log.info('Translated movie', movie);
