@@ -20,7 +20,7 @@ const getFileAndLineNumber = () => {
     if (typeof e.stack === 'string') {
       const lines = e.stack.split('\n');
       const path =
-        process.env.NODE_ENV === 'production' ? 'dist/db/' : `/src/${MODULE}/`;
+        process.env.NODE_ENV === 'production' ? '/dist/' : `/src/${MODULE}/`;
       const regex = new RegExp(`^\\s*at\\s+.*(${path}.+)\/([\\w:.]+)`);
       // console.log(regex);
       const matches = lines[3].match(regex);

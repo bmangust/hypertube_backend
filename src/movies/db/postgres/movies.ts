@@ -309,7 +309,7 @@ export const selectMovies = async (limit: number = 5, offset: number = 0) => {
       limit $1 offset $2;`,
       [limit, offset]
     );
-    if (!res.rowCount) throw new Error('No movies with saved torrents found');
+    if (!res.rowCount) log.info('No movies with saved torrents found');
     return res.rows;
   } catch (e) {
     log.error(e);

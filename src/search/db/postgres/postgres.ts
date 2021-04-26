@@ -69,14 +69,14 @@ export const getClient = async () => {
 
 export const getMovieFromDB = async (
   title: string,
-  ibdbid?: string,
+  imdbid?: string,
   year?: number
 ): Promise<IDBMovie> => {
   try {
     let res;
-    if (ibdbid)
+    if (imdbid)
       res = await query(`SELECT * FROM ${POSTGRES_SCHEME}.movies WHERE id=$1`, [
-        ibdbid,
+        imdbid,
       ]);
     else if (year > 0)
       res = await query(
@@ -254,5 +254,34 @@ export const insertTorrentIntoLoadedFiles = (torrent: ITorrent) => {
     );
   } catch (e) {
     log.error(e);
+  }
+};
+
+export const selectMoviesFromDB = async (
+  search: string
+): Promise<IDBMovie[] | null> => {
+  try {
+    const res = await query(
+      `SELECT
+        m.id as imdbid, m.*, (t.seeds + t.peers * 0.4) as avalibility, count(c.*) maxComments
+      FROM
+      ${POSTGRES_SCHEME}.movies m
+      JOIN ${POSTGRES_SCHEME}.torrents t on
+        t.movieid = m.id
+      left join ${POSTGRES_SCHEME}.comments c on
+        m.id = c.movieid 
+      where
+        m.title='%${search}%'
+        t.magnet is not null
+        or t.torrent is not null
+      group by m.id, avalibility
+      order by
+        m.rating`
+    );
+    if (!res.rowCount) log.info('No movies with saved torrents found');
+    return res.rows;
+  } catch (e) {
+    log.error(e);
+    return null;
   }
 };

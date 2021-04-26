@@ -5,7 +5,7 @@ const POSTGRES_USER = process.env.POSTGRES_USER || 'admin';
 const POSTGRES_PASSWORD = process.env.POSTGRES_PASSWORD || 'passwd';
 const POSTGRES_HOST = process.env.POSTGRES_HOST || 'localhost';
 const POSTGRES_PORT = process.env.POSTGRES_PORT || '5432';
-const POSTGRES_DB = process.env.POSTGRES_DB || 'localhost';
+const POSTGRES_DB = process.env.POSTGRES_DB || 'hypertube';
 const POSTGRES_SCHEME = process.env.POSTGRES_SCHEME || 'hypertube';
 
 export const DSN = `postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}`;
@@ -74,8 +74,10 @@ export const initDatabase = () => {
   // const dropTableQuery = `DROP TABLE IF EXISTS movies`;
   // await query(dropTableQuery);
   query(createMoviesTable);
-  query(createCommentsTable);
-  query(createRatingTable);
-  query(createTorrentsTable);
-  query(createKinopoiskMoviesTable);
+  setTimeout(() => {
+    query(createCommentsTable);
+    query(createRatingTable);
+    query(createTorrentsTable);
+    query(createKinopoiskMoviesTable);
+  }, 5000);
 };

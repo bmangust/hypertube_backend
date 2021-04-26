@@ -1,21 +1,9 @@
 import { httpResponse } from '../model/model';
 import log from '../logger/logger';
-import { fstat } from 'fs';
 const http = require('http');
 const https = require('https');
 const { readFile, createWriteStream, unlink } = require('fs');
 import { writeFile } from 'fs/promises';
-
-// const download = function (url: string, dest: string, cb?: () => {}) {
-//   var file = fs.createWriteStream(dest);
-//   http.get(url, function (response) {
-//     response.pipe(file);
-//     file.on('finish', function () {
-//       log.info('Downloaded file ', url, dest);
-//       file.close(cb);
-//     });
-//   });
-// };
 
 export function download(url: string): Promise<Buffer> {
   log.info('[Download]', url);

@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/sirupsen/logrus"
 )
 
 // FormatRequest creates a REQUEST message
@@ -98,6 +100,9 @@ func Read(r io.Reader) (*Message, error) {
 		Payload: messageBuf[1:],
 	}
 
+	if m.ID != MsgPiece {
+		logrus.Debugf("Parsed message from peer. Msg ID = %v; Payload: %v", m.ID, m.Payload)
+	}
 	return &m, nil
 }
 

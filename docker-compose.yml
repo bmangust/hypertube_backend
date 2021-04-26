@@ -7,6 +7,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - ${SEARCH_API_PORT}:2222
+    links:
+      - postgres-db
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
@@ -28,6 +30,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - ${MOVIES_API_PORT}:2223
+    links:
+      - postgres-db
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
@@ -43,15 +47,115 @@ services:
     depends_on:
       - postgres-db
 
-  nginx_server:
+  storage:
+    build:
+      context: ./src/storage
+      dockerfile: Dockerfile
+    hostname: storage
+    links:
+      - postgres-db
+      - redis-db
+      - torrent-client
+    ports:
+      - ${STORAGE_API_PORT}:2222
+    volumes:
+      - ${FILES_VOL_DIR}:${FILES_DIR}:rw
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_USER: ${REDIS_USER}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+      LOADER_SERVICE_ADDR: ${LOADER_SERVICE_ADDR}:2222
+
+      FILES_DIR: ${FILES_DIR}
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks:
+      - docker_net
+    restart: always
+
+  magnet-converter:
+    build:
+      context: ./src/magnetCoverter
+      dockerfile: Dockerfile
+    links:
+      - postgres-db
+    ports:
+      - ${MAGNET_CONVERTER_PORT}:50051
+    networks:
+      - docker_net
+    restart: always
+
+  torrent-client:
+    build:
+      context: ./src/torrentClient
+      dockerfile: Dockerfile
+    hostname: torrent-client
+    links:
+      - postgres-db
+      - redis-db
+    ports:
+      - ${TORRENT_CLIENT_API_PORT}:2222
+    volumes:
+      - ${FILES_VOL_DIR}:${FILES_DIR}:rw
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_USER: ${REDIS_USER}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+      FILES_DIR: ${FILES_DIR}
+      LOG_LEVEL: ${LOG_LEVEL}
+      TORRENT_PEER_PORT: ${TORRENT_PEER_PORT}
+    networks:
+      - docker_net
+    restart: always
+
+  torrent-peer:
+    build:
+      context: ./src/peerServer
+      dockerfile: Dockerfile
+    links:
+      - postgres-db
+    ports:
+      - ${TORRENT_PEER_PORT}:2222
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks:
+      - docker_net
+    restart: always
+
+  nginx-server:
     build:
       context: ./src/nginx
       dockerfile: Dockerfile
     ports:
       - ${FRONT_PORT}:80
+    links:
+      - search
+      - movies
+      - storage
+      - torrent-client
+      - magnet-converter
     networks:
       - docker_net
+    restart: always
     depends_on:
+      - storage
       - search
       - movies
     environment:
@@ -63,7 +167,7 @@ services:
     restart: always
     hostname: redis-db
     ports:
-      - ${REDIS_PORT}:6379
+      - ${REDIS_OUT_PORT}:6379
     networks:
       - docker_net
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
@@ -82,6 +186,7 @@ services:
 
   postgres-db:
     image: postgres:9.6.17
+    hostname: postgres-db
     volumes:
       #      - ./data/pgsql:/var/lib/postgresql/data:Z
       - ./data/pgsql:/home/${POSTGRES_USER}/data:Z

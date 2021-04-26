@@ -10,15 +10,12 @@ var syncOnce sync.Once
 var parser Parser
 
 type Parser interface {
-	GetOffersDbAddr() string
-	GetOffersDbPasswd() string
-	IsDevMode() bool
-	GetTrackerApiHost() string
-	GetTrackerApiEmail() string
-	GetTrackerApiPassword() string
+	GetRedisDbAddr() string
+	GetRedisDbPasswd() string
 	GetPostgresDbDsn() string
-	GetRotationInternalKey() string
-	GetRotationURL() string
+	IsDevMode() bool
+	GetFilesDir() string
+	GetLoaderServiceHost() string
 }
 
 func GetParser() Parser {

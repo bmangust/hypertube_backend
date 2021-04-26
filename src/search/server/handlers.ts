@@ -7,15 +7,15 @@ import {
   torrentIndexerSearch,
   YTSsearch,
 } from './torrents';
-import { loadMoviesInfo, removeDuplicates } from './imdb';
+import { dbToIMovie, loadMoviesInfo, removeDuplicates } from './imdb';
 import { getKinopoiskMovieByImdbid } from './kinopoisk';
+import { selectMoviesFromDB } from '../db/postgres/postgres';
 
 export const searchMovies = async (search: string, category: string) => {
-  // YTSsearch(search);
   // torrentIndexerSearch(search);
   try {
     const torrents = await searchTorrents(search, category, {
-      limit: 5,
+      limit: 20,
       retries: 3,
     });
     const grouppedTorrents = groupTorrentsByTitle(torrents);
@@ -27,10 +27,6 @@ export const searchMovies = async (search: string, category: string) => {
     if (movies && movies.length) {
       const unduplicated = removeDuplicates(movies);
       log.debug('Removed duplicates: ', unduplicated);
-      // const translated = await Promise.all(
-      //   unduplicated.map((movie) => translate(movie.en))
-      // );
-      // log.debug('translated', translated);
       return unduplicated;
     }
     return [];
@@ -47,11 +43,18 @@ export default function addHandlers(app: Express) {
     const search = req.query['search'].toString();
 
     try {
-      // let movies = await searchMovies(search, category);
-      // if (!movies || !movies.length) movies = await YTSsearch(search);
-      let movies = await YTSsearch(search);
-      // if (!movies) movies = await searchMovies(search, category);
-      log.info('[GET /find] found movies', movies);
+      let movies;
+      let dbMovies = await selectMoviesFromDB(search);
+      if (dbMovies) movies = dbMovies.map((movie) => dbToIMovie(movie));
+      log.info('[GET /find] movies from database', movies);
+      if (!movies.length) {
+        movies = await YTSsearch(search);
+        log.info('[GET /find] YTSsearch movies', movies);
+      }
+      if (!movies.length) {
+        movies = await searchMovies(search, category);
+        log.info('[GET /find] RARBG and TPB movies', movies);
+      }
       if (movies && movies.length)
         res.json(utils.createSuccessResponse(movies)).status(200);
       else

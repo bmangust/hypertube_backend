@@ -66,6 +66,7 @@ export interface IDBMovie {
   keywordlist: string;
   images: string;
   imdbrating: string;
+  avalibility: string;
 }
 
 export interface IKinopoiskMovie {

@@ -2,13 +2,15 @@ package handlers
 
 import (
 	"encoding/json"
-
-	"hypertube_storage/model"
-
-	"github.com/sirupsen/logrus"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"net/http"
 	"time"
+
+	"hypertube_storage/model"
+	"hypertube_storage/parser/env"
+
+	"github.com/sirupsen/logrus"
 )
 
 
@@ -58,23 +60,6 @@ func SendDataResponse(w http.ResponseWriter, data interface{}) {
 	}
 }
 
-func UnmarshalHttpBodyToBencodeTorrent(w http.ResponseWriter, r *http.Request) (*model.BencodeTorrent, bool) {
-	container := model.BencodeTorrent{}
-	requestData, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		logrus.Error("Can't read request body: ", err)
-		SendFailResponseWithCode(w, "error reading body", http.StatusInternalServerError)
-		return nil, false
-	}
-	err = json.Unmarshal(requestData, &container)
-	if err != nil {
-		logrus.Error("Can't read request body: ", err)
-		SendFailResponseWithCode(w, "error reading body", http.StatusInternalServerError)
-		return nil, false
-	}
-	return &container, true
-}
-
 func SetCookieForHour(w http.ResponseWriter, cookieName, value string) {
 	c := http.Cookie{
 		Name:     cookieName,
@@ -85,4 +70,33 @@ func SetCookieForHour(w http.ResponseWriter, cookieName, value string) {
 		MaxAge:   int(time.Hour.Seconds())}
 	http.SetCookie(w, &c)
 }
+
+func SendTaskToTorrentClient(fileId string) (string, bool) {
+	req, err := http.Get(fmt.Sprintf("http://%s/download?file_id=%s", env.GetParser().GetLoaderServiceHost(), fileId))
+	if err != nil {
+		logrus.Errorf("Error calling loader service: %v", err)
+		return "", false
+	}
+
+	if req.StatusCode != http.StatusOK {
+		logrus.Errorf("Not ok status from torrent client: %v %v", req.StatusCode, req.Status)
+		return "", false
+	}
+
+	info := model.LoaderTaskResponse{}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		logrus.Errorf("Error reading body: %v", err)
+		return "", false
+	}
+
+	if err := json.Unmarshal(body, &info); err != nil {
+		logrus.Errorf("Error unmarshal body from loader: %v", err)
+		return "", false
+	}
+
+	return info.Data.FileName, true
+}
+
 

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { readFile, writeFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import parse from 'node-html-parser';
 import TorrentSearchApi, { Torrent } from 'torrent-search-api';
 import log from '../logger/logger';
@@ -190,9 +190,9 @@ const searchFn = async (
 export const searchTorrents = async function (
   search: string,
   category: string = 'All',
-  options = { limit: 100, retries: 3 }
+  options = { limit: 20, retries: 3 }
 ) {
-  log.debug('[Torrents] searchTorrents start');
+  log.debug('[Torrents] searchTorrents start', options);
   try {
     const torrents = await searchFn(search, category, options);
     const resolvedTorrents = await Promise.all(
@@ -432,11 +432,17 @@ export const YTSsearch = async (
       if (!pages) return;
       const torrentsPromises = pages.map((page) => getTorrentsFromPage(page));
       log.debug('[YTSsearch] torrentsPromises', torrentsPromises);
-      const torrents = (await Promise.all(torrentsPromises)).filter(
-        (torrent) => torrent
-      );
+      const torrents = await Promise.all(torrentsPromises);
       log.debug('[YTSsearch] found torrents', torrents);
-      const movies = await loadMoviesInfo(torrents);
+      const reduced = torrents.reduce((acc: ITorrent[], torrent) => {
+        log.debug('[YTSsearch] acc, torrent', acc, torrent);
+        if (!torrent) return acc;
+        return !acc.find((movie) => movie.movieTitle === torrent.movieTitle)
+          ? [...acc, torrent]
+          : acc;
+      }, []);
+      log.debug('[YTSsearch] reduced torrents', reduced);
+      const movies = await loadMoviesInfo(reduced);
       log.info('[YTSsearch] found movies', movies);
       return movies;
     }

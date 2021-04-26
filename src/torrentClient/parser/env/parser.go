@@ -3,21 +3,19 @@ package env
 import (
 	"sync"
 
+	"torrentClient/parser/env/impl"
 )
 
 var syncOnce sync.Once
 var parser Parser
 
 type Parser interface {
-	GetOffersDbAddr() string
-	GetOffersDbPasswd() string
+	GetRedisDbAddr() string
+	GetRedisDbPasswd() string
 	IsDevMode() bool
-	GetTrackerApiHost() string
-	GetTrackerApiEmail() string
-	GetTrackerApiPassword() string
+	GetFilesDir() string
 	GetPostgresDbDsn() string
-	GetRotationInternalKey() string
-	GetRotationURL() string
+	GetTorrentPeerPort() uint16
 }
 
 func GetParser() Parser {

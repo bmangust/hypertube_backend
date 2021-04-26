@@ -212,7 +212,7 @@ export const imdbToIMovie = (
   };
 };
 
-export const dbToIMovie = (row: IDBMovie, torrent: ITorrent): IMovie => {
+export const dbToIMovie = (row: IDBMovie, torrent?: ITorrent): IMovie => {
   log.trace('[dbToIMovie]', row);
   return {
     id: row.id,
@@ -220,7 +220,7 @@ export const dbToIMovie = (row: IDBMovie, torrent: ITorrent): IMovie => {
     img: row.image,
     src: '',
     info: {
-      avalibility: torrent?.torrent.seeds || 0,
+      avalibility: +row.avalibility || torrent?.torrent.seeds || 0,
       year: +row.year,
       genres: (row.genres.split(', ') as unknown) as GenresKeys[],
       rating: +row.rating,
@@ -258,7 +258,9 @@ export const loadMoviesInfo = (
         log.info(
           `${torrent.movieTitle} was not found in database, now search in IMDB`
         );
-        let IMDBInfo = await serachIMDBMovie(torrent.movieTitle);
+        let IMDBInfo = await serachIMDBMovie(
+          `${torrent.movieTitle} ${torrent.year}`
+        );
         if (!IMDBInfo?.id) {
           IMDBInfo = await getIMDBInfo(torrent);
           saveMovieToDB(IMDBInfo);

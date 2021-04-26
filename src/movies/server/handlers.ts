@@ -53,6 +53,7 @@ export function addMoviesHandlers(app: Express) {
   });
   app.get('/genres', async (req, res) => {
     log.debug(req);
+    res.json(createErrorResponse(null)).status(404);
   });
   app.get('/byname', async (req, res) => {
     const limit = +req.query.limit || 5;
